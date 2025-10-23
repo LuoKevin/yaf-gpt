@@ -7,13 +7,14 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
-from yaf_gpt.config import Settings
-from yaf_gpt.model.llm_client import LLMClient, OpenAIChatClient, StubLLMClient
+from yaf_gpt.config import ChatConfig
+from yaf_gpt.model.llm_client import LLMClient, StubLLMClient
 
 logger = logging.getLogger(__name__)
 
 
-Role = Literal["system", "user", "assistant"]
+Role = Literal["system", "user", "assistant"]    
+
 
 
 class ChatMessage(BaseModel):
@@ -44,12 +45,23 @@ class ChatResponse(BaseModel):
 class ChatService:
     """Route chat history through the configured LLM client."""
 
-    def __init__(self, llm_client: LLMClient | None = None) -> None:
+    def __init__(self, llm_client: LLMClient | None = None, config: ChatConfig | None = None) -> None:
         self._llm = llm_client or StubLLMClient()
+        self._config = config or ChatConfig()
 
     def generate_reply(self, request: ChatRequest) -> ChatResponse:
         """Return an assistant message produced by the LLM client."""
         logger.debug("Generating reply for %d messages", len(request.messages))
-        completion = self._llm.complete(request.messages)
+        conversation = self._build_conversation(request.messages)
+        completion = self._llm.complete(conversation)
         reply = ChatMessage(role="assistant", content=completion)
         return ChatResponse(message=reply)
+
+    def _build_conversation(self, user_messages: list[ChatMessage]) -> list[ChatMessage]:
+        """Inject system prompt and return the full conversation for the LLM."""
+        conversation: list[ChatMessage] = []
+        if self._config.system_prompt:
+            conversation.append(ChatMessage(role="system", content=self._config.system_prompt))
+
+        conversation.extend(user_messages)
+        return conversation

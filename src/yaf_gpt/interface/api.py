@@ -9,12 +9,13 @@ from yaf_gpt.model.llm_client import OpenAIChatClient
 from yaf_gpt.pipeline.chat_service import ChatRequest, ChatResponse, ChatService
 
 
-def create_app(chat_service: ChatService | None = None, config: Settings = Settings()) -> FastAPI:
+def create_app(chat_service: ChatService | None = None, config: Settings | None = None) -> FastAPI:
     """Application factory with all routes registered."""
-    openai_key = config.OPENAI_API_KEY
-    openai_client = OpenAIChatClient(api_key=openai_key) if openai_key else None
+    settings = config if config else Settings()
+    openai_key = settings.OPENAI_API_KEY
+    llm_client = OpenAIChatClient(api_key=openai_key) if openai_key else None
 
-    service: ChatService = chat_service or ChatService(llm_client=openai_client)
+    service: ChatService = chat_service or ChatService(llm_client=llm_client, config=settings.chat)
     app = FastAPI(title="yaf-gpt", version="0.0.1")
 
     @app.get("/health", tags=["system"])
@@ -27,6 +28,5 @@ def create_app(chat_service: ChatService | None = None, config: Settings = Setti
         return service.generate_reply(request)
 
     return app
-
 
 app = create_app()
