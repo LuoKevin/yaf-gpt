@@ -1,11 +1,14 @@
-"""Stub chat service used while wiring up the API surface."""
+"""Chat service orchestrating prompts to LLM backends."""
 
 from __future__ import annotations
 
 import logging
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
+
+from yaf_gpt.config import Settings
+from yaf_gpt.model.llm_client import LLMClient, OpenAIChatClient, StubLLMClient
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +28,12 @@ class ChatRequest(BaseModel):
 
     messages: list[ChatMessage]
 
+    @model_validator(mode="after")
+    def ensure_user_message(self) -> "ChatRequest":
+        if not self.messages:
+            raise ValueError("At least one message is required to generate a reply.")
+        return self
+
 
 class ChatResponse(BaseModel):
     """Response payload wrapping the assistant's reply."""
@@ -33,15 +42,14 @@ class ChatResponse(BaseModel):
 
 
 class ChatService:
-    """Naive service that returns a deterministic assistant response."""
+    """Route chat history through the configured LLM client."""
+
+    def __init__(self, llm_client: LLMClient | None = None) -> None:
+        self._llm = llm_client or StubLLMClient()
 
     def generate_reply(self, request: ChatRequest) -> ChatResponse:
-        """Return a canned assistant message while the real model is pending."""
-        if not request.messages:
-            logger.warning("Received empty message list; returning default stub.")
-
-        reply = ChatMessage(
-            role="assistant",
-            content="This is a stub response from yaf-gpt. Real model coming soon!",
-        )
+        """Return an assistant message produced by the LLM client."""
+        logger.debug("Generating reply for %d messages", len(request.messages))
+        completion = self._llm.complete(request.messages)
+        reply = ChatMessage(role="assistant", content=completion)
         return ChatResponse(message=reply)

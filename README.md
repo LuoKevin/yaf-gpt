@@ -27,51 +27,10 @@ curl -X POST http://127.0.0.1:8000/chat \
 
 You should receive a JSON payload containing a stubbed assistant reply.
 
-<!--
-Markdown Cheat Sheet
-====================
+## LLM Configuration
 
-Headings
---------
-# H1
-## H2
-### H3
+The chat service routes requests through an `LLMClient` abstraction. By default it uses an offline stub so the API works without external credentials. To talk to OpenAI:
 
-Emphasis
---------
-*italic* or _italic_
-**bold** or __bold__
-~~strikethrough~~
-
-Lists
------
-- Unordered item
-  - Nested item
-1. Ordered item
-2. Second item
-
-Code
-----
-Inline: `code`
-Block:
-```python
-print("Hello, world!")
-```
-
-Links & Images
---------------
-[link text](https://example.com)
-![alt text](path/to/img.png)
-
-Quotes & Tables
----------------
-> Blockquote
-
-| Col A | Col B |
-| ----- | ----- |
-| Val 1 | Val 2 |
-
-Horizontal Rule
----------------
----
--->
+1. Install the `openai` package (e.g., `pip install openai`).
+2. Export `OPENAI_API_KEY`.
+3. Instantiate `ChatService` with `OpenAIChatClient` (see `yaf_gpt/model/llm_client.py` for details).
