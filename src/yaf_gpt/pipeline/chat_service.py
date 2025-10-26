@@ -1,6 +1,7 @@
 """Chat service orchestrating prompts to LLM backends."""
 
 from __future__ import annotations
+import time
 
 import logging
 from typing import Literal
@@ -52,9 +53,16 @@ class ChatService:
     def generate_reply(self, request: ChatRequest) -> ChatResponse:
         """Return an assistant message produced by the LLM client."""
         logger.debug("Generating reply for %d messages", len(request.messages))
+        start_time = time.time()
         conversation = self._build_conversation(request.messages)
         completion = self._llm.complete(conversation)
         reply = ChatMessage(role="assistant", content=completion)
+        elapsed_time = time.time() - start_time
+        logger.info("chat_completion", extra={
+            "latency_ms" : elapsed_time,
+            "temperature": self._config.temperature,
+            "max_tokens" : self._config.max_tokens
+        })
         return ChatResponse(message=reply)
 
     def _build_conversation(self, user_messages: list[ChatMessage]) -> list[ChatMessage]:
