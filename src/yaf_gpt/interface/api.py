@@ -1,8 +1,9 @@
 """FastAPI application wiring for yaf_gpt."""
 
 from __future__ import annotations
+import logging
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 
 from yaf_gpt.config import Settings
 from yaf_gpt.model.llm_client import OpenAIChatClient
@@ -27,6 +28,15 @@ def create_app(chat_service: ChatService | None = None, config: Settings | None 
         """Accepts chat messages and returns the assistant reply."""
         return service.generate_reply(request)
 
+    @app.middleware("http")
+    async def log_requests(request: Request, call_next):
+        logger = logging.getLogger("yaf_gpt")
+        logger.info(f"Incoming request: {request.method} {request.url}")
+        response = await call_next(request)
+        logger.info(f"Response status: {response.status_code}")
+        return response
+
     return app
 
 app = create_app()
+
