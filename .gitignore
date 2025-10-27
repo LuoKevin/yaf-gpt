@@ -138,3 +138,5 @@ cython_debug/
 
 # VS Code settings
 .vscode/
+
+raw_data/
