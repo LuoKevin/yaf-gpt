@@ -5,6 +5,9 @@ class ChatConfig(BaseModel):
     system_prompt: str | None = None
     temperature: float  = 0.0
     max_tokens: int = 30
+    knowledge_top_k: int = 3
+    knowledge_enabled: bool = False
+    max_context_chars: int = 4000
 
 class Settings(BaseSettings):
     chat: ChatConfig = ChatConfig()

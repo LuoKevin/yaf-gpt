@@ -5,10 +5,10 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 
 class KnowledgeBase:
     """Manages the knowledge base for yaf_gpt."""
-    
-    def __init__(self, data_path: Path = Path("./data/processed/luke_chunks.jsonl")) -> None:
+
+    def __init__(self, data_path: Path | str) -> None:
         self._vectorizer = TfidfVectorizer(stop_words='english')
-        self.data_path = data_path
+        self.data_path = Path(data_path)
         self.chunks: list[StudyChunk] = self._load_knowledge_base()
         self._vectors = self._vectorizer.fit_transform([chunk.text for chunk in self.chunks])
 
@@ -24,7 +24,7 @@ class KnowledgeBase:
         """Return the loaded knowledge base chunks."""
         return self.chunks
 
-    def search(self, query: str, top_k: int = 3) -> list[(StudyChunk, float)]:
+    def search(self, query: str, top_k: int = 3) -> list[tuple[StudyChunk, float]]:
         """Search the knowledge base for the most relevant chunks to the query."""
         top_k = min(top_k, len(self.chunks))
         query_vector = self._vectorizer.transform([query])
