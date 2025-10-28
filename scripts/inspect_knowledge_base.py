@@ -16,7 +16,7 @@ SRC_ROOT = PROJECT_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from yaf_gpt.data.StudyChunk import StudyChunk
+from yaf_gpt.data.study_chunk import StudyChunk
 
 
 def load_chunks(path: Path) -> list[StudyChunk]:
