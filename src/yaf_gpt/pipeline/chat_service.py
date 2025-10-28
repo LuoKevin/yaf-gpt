@@ -72,6 +72,8 @@ class ChatService:
                 )
                 conversation.insert(-1, knowledge_message)
             logger.info("Injected %d knowledge chunks into the conversation", len(similar_chunks))
+            for chunk, score in similar_chunks:
+                logger.debug("KB chunk %s (score=%.2f): %s", chunk.doc_id, score, chunk.text[:200])
 
         completion = self._llm.complete(conversation)
         reply = ChatMessage(role="assistant", content=completion)
