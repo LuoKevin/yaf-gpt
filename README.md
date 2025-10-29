@@ -27,6 +27,16 @@ curl -X POST http://127.0.0.1:8000/chat \
 
 You should receive a JSON payload containing a stubbed assistant reply.
 
+## Evaluation
+
+Add retrieval test cases under `data/eval/retrieval_queries.jsonl`, then run:
+
+```bash
+python scripts/evaluate_retrieval.py --top-k 5
+```
+
+The script reports hit rates, mean reciprocal rank, and per-query diagnostics so you can iterate on chunking or retrieval settings.
+
 ## LLM Configuration
 
 The chat service routes requests through an `LLMClient` abstraction. By default it uses an offline stub so the API works without external credentials. To talk to OpenAI:
