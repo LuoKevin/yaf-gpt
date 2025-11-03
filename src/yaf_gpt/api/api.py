@@ -4,22 +4,40 @@ from __future__ import annotations
 import logging
 
 from fastapi import FastAPI, Request
+from pydantic import BaseModel, Field, model_validator
 
-from scripts.langchain.build_runnable import build_chain
-from scripts.langchain.ingest_documents import ingest_documents
-from yaf_gpt.config import Settings
-from yaf_gpt.model.llm_client import OpenAIChatClient
-from yaf_gpt.pipeline.chat_service import ChatRequest, ChatResponse, ChatService
+from yaf_gpt.scripts.langchain import build_chain
+from yaf_gpt.scripts.langchain import ingest_documents
+from yaf_gpt.core import Settings
+
+class ChatMessage(BaseModel):
+    """Single chat message with a role and content."""
+    role: str = Field(..., description="Role of the message sender (e.g., 'user' or 'assistant')")
+    content: str = Field(..., min_length=1)
 
 
-def create_app(chat_service: ChatService | None = None, config: Settings | None = None) -> FastAPI:
+class ChatRequest(BaseModel):
+    """Incoming request payload containing the conversation history."""
+
+    messages: list[ChatMessage]
+
+    @model_validator(mode="after")
+    def ensure_user_message(self) -> "ChatRequest":
+        if not self.messages:
+            raise ValueError("At least one message is required to generate a reply.")
+        return self
+
+
+class ChatResponse(BaseModel):
+    """Response payload wrapping the assistant's reply."""
+
+    message: ChatMessage
+
+
+def create_app(config: Settings | None = None) -> FastAPI:
     """Application factory with all routes registered."""
     settings = config if config else Settings()
-    openai_key = settings.OPENAI_API_KEY
-    llm_client = OpenAIChatClient(api_key=openai_key) if openai_key else None
     runnable = build_chain(retriever=ingest_documents(config=settings), config=settings)
-
-    service: ChatService = chat_service or ChatService(llm_client=llm_client, config=settings.chat)
     app = FastAPI(title="yaf-gpt", version="0.0.2")
 
     @app.get("/health", tags=["system"])
@@ -28,11 +46,6 @@ def create_app(chat_service: ChatService | None = None, config: Settings | None 
 
     @app.post("/chat", tags=["chat"], response_model=ChatResponse)
     async def chat_endpoint(request: ChatRequest) -> ChatResponse:
-        """Accepts chat messages and returns the assistant reply."""
-        return service.generate_reply(request)
-
-    @app.post("/chat-langchain", tags=["chat"], response_model=ChatResponse)
-    async def chat_langchain_endpoint(request: ChatRequest) -> ChatResponse:
         """Accepts chat messages and returns the assistant reply."""
         return runnable.invoke({"question": request.message})
 

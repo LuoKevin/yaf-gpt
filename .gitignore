@@ -141,3 +141,5 @@ cython_debug/
 
 raw_data/
 chroma/
+
+data/

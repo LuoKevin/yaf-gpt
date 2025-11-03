@@ -2,7 +2,7 @@
 
 from fastapi.testclient import TestClient
 
-from yaf_gpt.interface.api import create_app
+from yaf_gpt.api.api import create_app
 from yaf_gpt.pipeline.chat_service import ChatMessage, ChatRequest, ChatResponse, ChatService
 
 

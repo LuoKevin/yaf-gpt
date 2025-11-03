@@ -7,8 +7,8 @@ from langchain_openai import ChatOpenAI
 from langchain_core.vectorstores import VectorStoreRetriever
 from langchain_core.documents import Document
 
-from yaf_gpt.config import Settings
-from yaf_gpt.pipeline.langchain.ingest_documents import ingest_documents
+from yaf_gpt.core import Settings
+from yaf_gpt.scripts.langchain import ingest_documents
 
 def _build_context(docs: list[Document]):
     return "\n\n".join(f"{doc.metadata.get('source', 'unknown')} \n {doc.page_content[:500]}" for doc in docs)

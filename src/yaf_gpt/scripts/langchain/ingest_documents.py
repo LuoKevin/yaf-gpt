@@ -9,7 +9,7 @@ from langchain_core.documents import Document
 from langchain_core.vectorstores import VectorStoreRetriever
 import random
 
-from yaf_gpt.config import Settings
+from yaf_gpt.core.config import Settings
 
 
 def _inspect_docs(docs: list[Document]):
@@ -52,7 +52,7 @@ def ingest_documents(config: Settings | None = None) -> VectorStoreRetriever:
         if config and config.OPENAI_API_KEY
         else HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
     )
-    vector_store = Chroma.from_documents(documents=chunks, embedding=embeddings, persist_directory="chroma/chroma_study")
+    vector_store = Chroma.from_documents(documents=chunks, embedding=embeddings, persist_directory="data/chroma_study")
 
     retriever: VectorStoreRetriever = vector_store.as_retriever(search_kwargs={"k": 3})
     return retriever

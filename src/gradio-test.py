@@ -3,9 +3,9 @@ from langchain_chroma import Chroma
 from langchain_huggingface.embeddings import HuggingFaceEmbeddings
 from langchain_core.messages import AIMessage
 
-from yaf_gpt.config import Settings
-from yaf_gpt.pipeline.langchain.ingest_documents import ingest_documents
-from yaf_gpt.pipeline.langchain.build_runnable import build_chain
+from yaf_gpt.core import Settings
+from yaf_gpt.scripts.langchain import ingest_documents
+from yaf_gpt.scripts.langchain import build_chain
 
 
 # load persisted store
