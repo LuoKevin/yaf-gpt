@@ -1,7 +1,7 @@
 from pathlib import Path
 from langchain_community.document_loaders import Docx2txtLoader
 from langchain_community.document_loaders import DirectoryLoader
-from langchain_community.vectorstores import Chroma
+from langchain_chroma import Chroma
 from langchain_openai.embeddings import OpenAIEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_huggingface.embeddings import HuggingFaceEmbeddings
@@ -52,8 +52,7 @@ def ingest_documents(config: Settings | None = None) -> VectorStoreRetriever:
         if config and config.OPENAI_API_KEY
         else HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
     )
-    vector_store = Chroma.from_documents(documents=chunks, embedding=embeddings, persist_directory="chroma_study")
-    vector_store.persist()
+    vector_store = Chroma.from_documents(documents=chunks, embedding=embeddings, persist_directory="chroma/chroma_study")
 
     retriever: VectorStoreRetriever = vector_store.as_retriever(search_kwargs={"k": 3})
     return retriever

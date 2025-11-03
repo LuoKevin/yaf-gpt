@@ -1,3 +1,4 @@
+from langchain_chroma import Chroma
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import Runnable
 from langchain_core.runnables import RunnableLambda
@@ -7,6 +8,7 @@ from langchain_core.vectorstores import VectorStoreRetriever
 from langchain_core.documents import Document
 
 from yaf_gpt.config import Settings
+from yaf_gpt.pipeline.langchain.ingest_documents import ingest_documents
 
 def _build_context(docs: list[Document]):
     return "\n\n".join(f"{doc.metadata.get('source', 'unknown')} \n {doc.page_content[:500]}" for doc in docs)
@@ -18,6 +20,7 @@ def build_chain(retriever: VectorStoreRetriever, config: Settings | None = None,
         model_name = config.chat.model if config else "gpt-4o-mini"
         openai = ChatOpenAI(
             model_name=model_name,
+            api_key=config.OPENAI_API_KEY if config else None,
             temperature=config.chat.temperature if config else 0.0,
         )
     prompt_template = ChatPromptTemplate.from_messages(
@@ -30,7 +33,7 @@ def build_chain(retriever: VectorStoreRetriever, config: Settings | None = None,
             ]
     )
 
-    chain = (
+    chain  = (
         {"question": RunnablePassthrough(),
          "context": retriever |  RunnableLambda(_build_context)}
          | prompt_template
@@ -38,3 +41,10 @@ def build_chain(retriever: VectorStoreRetriever, config: Settings | None = None,
     ).with_config({"run_name": "yaf_gpt_rag_chain"})
 
     return chain
+
+if __name__ == "__main__":
+
+    config = Settings()
+    my_retriever = ingest_documents(config=config)
+    chain = build_chain(my_retriever, config=config)
+    chain.invoke("What is yaf-gpt?")
