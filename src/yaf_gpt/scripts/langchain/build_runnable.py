@@ -22,6 +22,7 @@ def build_chain(retriever: VectorStoreRetriever, config: Settings | None = None,
             model_name=model_name,
             api_key=config.OPENAI_API_KEY if config else None,
             temperature=config.chat.temperature if config else 0.0,
+            use_responses_api=True,
         )
     prompt_template = ChatPromptTemplate.from_messages(
         [
