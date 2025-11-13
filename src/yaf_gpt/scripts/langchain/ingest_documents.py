@@ -8,9 +8,28 @@ from langchain_huggingface.embeddings import HuggingFaceEmbeddings
 from langchain_core.documents import Document
 from langchain_core.vectorstores import VectorStoreRetriever
 import random
+import re
 
 from yaf_gpt.core.config import Settings
+LINE_MARKER = "###"
+SECTION_MARKERS = [
+    "QUESTIONS", 
+    "CONTEXT", 
+    "APPLICATION", 
+    "PASSAGE",
+]
 
+
+def is_section_marker(line: str) -> bool:
+    stripped_line = line.strip().upper()
+    regex = r"(QUESTIONS|CONTEXT|APPLICATION|PASSAGE)"
+    return re.match(regex, stripped_line) and len(stripped_line) < 30
+
+def tag_sections(text: str) -> str:
+    lines = []
+    for line in text.splitlines():
+        if is_section_marker(line):
+            lines.append(f"{LINE_MARKER} {line.strip()}")
 
 def _inspect_docs(docs: list[Document]):
     #choose a few random documents to inspect
@@ -35,6 +54,7 @@ def ingest_documents(config: Settings | None = None) -> VectorStoreRetriever:
         chunk_size=800,
         chunk_overlap=150,
         separators=[
+            LINE_MARKER,     # prefer splitting on section markers
             "\n\n",          # prefer splitting on blank lines
             "\n",            # then single newline
             " ",             # fall back to whitespace
