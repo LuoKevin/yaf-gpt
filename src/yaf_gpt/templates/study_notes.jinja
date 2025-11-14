@@ -5,7 +5,7 @@ Passage: {{ passage_reference }}
 
 Style Examples:
 {% for note in notes %}
-[{{ loop.index }}] {{ note.title or note.metadata.get('section', note.metadata.get('source', 'Example')) }}
+[{{ loop.index }}] {{ note.title or "" }}
 {{ note.content | truncate(800) }}
 
 {% endfor %}

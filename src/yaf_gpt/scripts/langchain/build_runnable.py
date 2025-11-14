@@ -38,7 +38,8 @@ def build_runnable(retriever: VectorStoreRetriever, config: Settings | None = No
 
     chain  = (
         {"question": RunnablePassthrough(),
-         "context": retriever |  RunnableLambda(_build_context)}
+         "context": retriever |  RunnableLambda(_build_context)
+         }
          | prompt_template
          | openai
     ).with_config({"run_name": "yaf_gpt_rag_chain"})

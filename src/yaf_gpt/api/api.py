@@ -5,6 +5,7 @@ import logging
 
 from fastapi import FastAPI, Request
 from pydantic import BaseModel, Field, model_validator
+from langchain_core.runnables import Runnable
 
 from yaf_gpt.scripts.langchain import build_runnable
 from yaf_gpt.scripts.langchain import ingest_documents
@@ -37,7 +38,7 @@ class ChatResponse(BaseModel):
 def create_app(config: Settings | None = None) -> FastAPI:
     """Application factory with all routes registered."""
     settings = config if config else Settings()
-    runnable = build_runnable(retriever=ingest_documents(config=settings), config=settings)
+    runnable : Runnable = build_runnable(retriever=ingest_documents(config=settings), config=settings)
     app = FastAPI(title="yaf-gpt", version="0.0.2")
 
     @app.get("/health", tags=["system"])
