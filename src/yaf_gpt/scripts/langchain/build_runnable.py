@@ -14,7 +14,7 @@ def _build_context(docs: list[Document]):
     return "\n\n".join(f"{doc.metadata.get('source', 'unknown')} \n {doc.page_content[:500]}" for doc in docs)
 
 
-def build_chain(retriever: VectorStoreRetriever, config: Settings | None = None, openai: ChatOpenAI | None = None) -> Runnable:
+def build_runnable(retriever: VectorStoreRetriever, config: Settings | None = None, openai: ChatOpenAI | None = None) -> Runnable:
     """Build a retrieval-augmented generation chain."""
     if openai is None:
         model_name = config.chat.model if config else "gpt-4o-mini"
@@ -24,12 +24,14 @@ def build_chain(retriever: VectorStoreRetriever, config: Settings | None = None,
             temperature=config.chat.temperature if config else 0.0,
             use_responses_api=True,
         )
+
     prompt_template = ChatPromptTemplate.from_messages(
         [
             ("system", """You are a church minister leading a a fellowship of young adults. 
                 You seek to help young adults becoming rooted in the gospel to reflect the glory of God.
                 Your mission is to build up God-loving, church-serving disciples of Christ.
             """),
+            ("system",)
             ("human", "Context: \n {context} \n\nQuestion: {question}")
             ]
     )
@@ -47,5 +49,5 @@ if __name__ == "__main__":
 
     config = Settings()
     my_retriever = ingest_documents(config=config)
-    chain = build_chain(my_retriever, config=config)
+    chain = build_runnable(my_retriever, config=config)
     chain.invoke("What is yaf-gpt?")

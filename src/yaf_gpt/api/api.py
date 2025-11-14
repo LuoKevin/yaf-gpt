@@ -6,7 +6,7 @@ import logging
 from fastapi import FastAPI, Request
 from pydantic import BaseModel, Field, model_validator
 
-from yaf_gpt.scripts.langchain import build_chain
+from yaf_gpt.scripts.langchain import build_runnable
 from yaf_gpt.scripts.langchain import ingest_documents
 from yaf_gpt.core import Settings
 
@@ -37,7 +37,7 @@ class ChatResponse(BaseModel):
 def create_app(config: Settings | None = None) -> FastAPI:
     """Application factory with all routes registered."""
     settings = config if config else Settings()
-    runnable = build_chain(retriever=ingest_documents(config=settings), config=settings)
+    runnable = build_runnable(retriever=ingest_documents(config=settings), config=settings)
     app = FastAPI(title="yaf-gpt", version="0.0.2")
 
     @app.get("/health", tags=["system"])
@@ -56,8 +56,14 @@ def create_app(config: Settings | None = None) -> FastAPI:
         response = await call_next(request)
         logger.info(f"Response status: {response.status_code}")
         return response
-
+   
+    @app.get("/study_notes")
+    async def get_study_notes():
+        return {"message": "Study notes endpoint"}
+    
     return app
+
+   
 
 settings = Settings()
 
