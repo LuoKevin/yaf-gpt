@@ -46,7 +46,6 @@ function App() {
         <p>Your one-in-all spiritual learning objective platform.</p>
       </header>
 
-      <VerseInput onSubmit={handleGeneratePassage} />
       <ParableSelector onSelect={handleGeneratePassage} />
 
       <main className="grid">

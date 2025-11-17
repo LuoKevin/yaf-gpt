@@ -42,6 +42,7 @@ export function ParableSelector({ label = "Choose a parable", onSelect }: Parabl
           </optgroup>
         ))}
       </select>
+      <button type="submit">Generate</button>
     </div>
   );
 }
