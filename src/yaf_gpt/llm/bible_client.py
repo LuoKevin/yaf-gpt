@@ -11,6 +11,13 @@ def bible_client(config: Settings | None = None) -> OpenAI:
 
     return client
 
+def openai_client(config: Settings | None = None) -> OpenAI:
+    client = OpenAI(
+        api_key=config.OPENAI_API_KEY if config else None,
+    )
+
+    return client
+
 if __name__ == "__main__":
     config = Settings()
     client = bible_client(config=config)

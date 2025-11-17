@@ -1,7 +1,9 @@
 
+from jinja2 import Environment, FileSystemLoader
 from openai import OpenAI
-from jinja2 import Template
 from langchain_core.prompts import ChatPromptTemplate
+
+from yaf_gpt.llm.bible_client import openai_client
 
 
 class BibleStudyHelper:
@@ -23,7 +25,7 @@ class BibleStudyHelper:
         )
         return response.choices[0].message.content
 
-    def study(self, passage):
+    def depr_study(self, passage):
         response = self.client.chat.completions.create(
             model="sleepdeprived3/Reformed-Christian-Bible-Expert-12B:featherless-ai",
             messages=[
@@ -37,6 +39,27 @@ class BibleStudyHelper:
                 }
             ]
         )
+
+    def study(self, reference):
+        env = Environment(loader=FileSystemLoader("src/yaf_gpt/templates"))
+        template = env.get_template("study_notes.jinja")
+        system_prompt = template.render()
+        print(system_prompt)
+
+        response = self.client.chat.completions.create(
+            model="gpt-5-mini",
+            messages=[
+                {
+                    "role": "system",
+                    "content":system_prompt
+                },
+                {
+                    "role": "user",
+                    "content": reference
+                }
+            ]
+        )
+
         return response
     
 if __name__ == "__main__":
@@ -44,10 +67,9 @@ if __name__ == "__main__":
     from yaf_gpt.llm.bible_client import bible_client
 
     config = Settings()
-    client = bible_client(config=config)
+    client = openai_client(config=config)
     helper = BibleStudyHelper(client=client)
 
-    passage_text = helper._get_passage("Luke 15:11-32")
-    study_response = helper.study(passage_text)
+    study_response = helper.study("Luke 10:25")
 
     print(study_response.choices[0].message.content)
