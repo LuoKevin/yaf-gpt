@@ -6,6 +6,8 @@ import { IcebreakerQuestion } from "./components/IcebreakerQuestion";
 import { PassageContext } from "./components/PassageContext";
 import { LifeApplication } from "./components/LifeApplication";
 import { PassageImage } from "./components/PassageImage";
+import { PassageQuestions } from "./components/PassageQuestions";
+import { ParableSelector } from "./components/ParableSelector";
 
 function App() {
   const [reference, setReference] = useState("");
@@ -14,6 +16,9 @@ function App() {
   const [context, setContext] = useState("");
   const [lifeApplication, setLifeApplication] = useState<string[]>([]);
   const [imageUrl, setImageUrl] = useState<string | undefined>();
+  const [questions, setQuestions] = useState<
+    { prompt: string; type: "content" | "application" }[]
+  >([]);
 
   function handleGeneratePassage(ref: string) {
     setReference(ref);
@@ -28,21 +33,27 @@ function App() {
       "Encourage a friend or your small group to practice persistent prayer together this week.",
     ]);
     setImageUrl(undefined);
+    setQuestions([
+      { prompt: "What does Jesus teach about persistence in prayer?", type: "content" },
+      { prompt: "How have you seen persistence answered in your life?", type: "application" },
+    ]);
   }
 
   return (
     <div className="app-shell">
       <header>
-        <h1>Bible Study Companion</h1>
-        <p>Generate study notes, context, and visuals for any passage.</p>
+        <h1>YAF-GPT</h1>
+        <p>Your one-in-all spiritual learning objective platform.</p>
       </header>
 
       <VerseInput onSubmit={handleGeneratePassage} />
+      <ParableSelector onSelect={handleGeneratePassage} />
 
       <main className="grid">
         <PassageDisplay reference={reference} text={passageText} />
         <IcebreakerQuestion question={icebreaker} />
         <PassageContext context={context} />
+        <PassageQuestions questions={questions} />
         <LifeApplication points={lifeApplication} />
         <PassageImage imageUrl={imageUrl} description={reference} />
       </main>

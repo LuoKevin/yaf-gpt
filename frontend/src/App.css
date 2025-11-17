@@ -13,8 +13,8 @@
 
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.5rem;
 }
 
 .panel {
@@ -54,6 +54,10 @@
 .life-application ul {
   margin: 0;
   padding-left: 1.2rem;
+}
+
+.passage-questions .question-block + .question-block {
+  margin-top: 0.75rem;
 }
 
 .passage-image img {
