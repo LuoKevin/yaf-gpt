@@ -1,6 +1,5 @@
 import { useState } from "react";
 import "./App.css";
-import { VerseInput } from "./components/VerseInput";
 import { PassageDisplay } from "./components/PassageDisplay";
 import { IcebreakerQuestion } from "./components/IcebreakerQuestion";
 import { PassageContext } from "./components/PassageContext";
