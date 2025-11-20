@@ -4,7 +4,6 @@ import parables from "./parables.json";
 type ParableSelectorProps = {
   label?: string;
   onSelect: (reference: string) => void;
-  getStudyNotes?: (reference: string) => void;
 };
 
 type ParablesByBook = Record<
@@ -15,7 +14,7 @@ type ParablesByBook = Record<
   }>
 >;
 
-export function ParableSelector({ label = "Choose a parable", onSelect, getStudyNotes }: ParableSelectorProps) {
+export function ParableSelector({ label = "Choose a parable", onSelect }: ParableSelectorProps) {
   const data = parables as ParablesByBook;
   const books = Object.keys(data);
   const [selectedReference, setSelectedReference] = useState("");
@@ -23,9 +22,9 @@ export function ParableSelector({ label = "Choose a parable", onSelect, getStudy
   function handleChange(event: React.ChangeEvent<HTMLSelectElement>) {
     const value = event.target.value;
     setSelectedReference(value);
-    if (value) {
-      onSelect(value);
-    }
+    // if (value) {
+    //   onSelect(value);
+    // }
   }
 
   return (
@@ -43,7 +42,7 @@ export function ParableSelector({ label = "Choose a parable", onSelect, getStudy
           </optgroup>
         ))}
       </select>
-      <button onClick={() => getStudyNotes && getStudyNotes(selectedReference)} type="submit">Generate</button>
+      <button onClick={() => onSelect(selectedReference)} type="submit">Generate</button>
     </div>
   );
 }

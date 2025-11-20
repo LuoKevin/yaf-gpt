@@ -12,6 +12,7 @@ class ChatConfig(BaseModel):
 
 class Settings(BaseSettings):
     chat: ChatConfig = ChatConfig()
+    cors_origins: list[str] | None = None
     OPENAI_API_KEY: str | None = None
     HF_TOKEN: str | None = None
     class Config:
