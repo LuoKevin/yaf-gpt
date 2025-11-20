@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import "./App.css";
 import { PassageDisplay } from "./components/PassageDisplay";
 import { IcebreakerQuestion } from "./components/IcebreakerQuestion";
@@ -7,36 +7,13 @@ import { LifeApplication } from "./components/LifeApplication";
 import { PassageImage } from "./components/PassageImage";
 import { PassageQuestions } from "./components/PassageQuestions";
 import { ParableSelector } from "./components/ParableSelector";
+import { usePassage } from "./hooks/usePassage";
 
 function App() {
   const [reference, setReference] = useState("");
-  const [passageText, setPassageText] = useState("");
-  const [icebreaker, setIcebreaker] = useState("");
-  const [context, setContext] = useState("");
-  const [lifeApplication, setLifeApplication] = useState<string[]>([]);
-  const [imageUrl, setImageUrl] = useState<string | undefined>();
-  const [questions, setQuestions] = useState<
-    { prompt: string; type: "content" | "application" }[]
-  >([]);
 
-  function handleGeneratePassage(ref: string) {
-    setReference(ref);
-    // Placeholder data while backend integration is in progress
-    setPassageText(
-      "In progress: connect to the backend Bible service. For now this is a placeholder for the passage text."
-    );
-    setIcebreaker("Share a moment when prayer felt particularly powerful to you.");
-    setContext("These verses highlight how Jesus teaches persistence in prayer and reliance on the Father.");
-    setLifeApplication([
-      "Identify one area of your life where you can ask, seek, and knock with renewed faith.",
-      "Encourage a friend or your small group to practice persistent prayer together this week.",
-    ]);
-    setImageUrl(undefined);
-    setQuestions([
-      { prompt: "What does Jesus teach about persistence in prayer?", type: "content" },
-      { prompt: "How have you seen persistence answered in your life?", type: "application" },
-    ]);
-  }
+  const {  getStudyNotes, passageText, icebreaker, context, questions, lifeApplication } = usePassage();
+
 
   return (
     <div className="app-shell">
@@ -45,14 +22,14 @@ function App() {
         <p>Your one-in-all spiritual learning objective platform.</p>
       </header>
 
-      <ParableSelector onSelect={handleGeneratePassage} />
+      <ParableSelector onSelect={(ref) => setReference(ref)} />
 
       <main className="grid">
-        <PassageDisplay reference={reference} text={passageText} />
-        <IcebreakerQuestion question={icebreaker} />
-        <PassageContext context={context} />
-        <PassageQuestions questions={questions} />
-        <LifeApplication points={lifeApplication} />
+        <PassageDisplay reference={reference} text={passageText || "In progress: connect to the backend Bible service. For now this is a placeholder for the passage text."} />
+        <IcebreakerQuestion question={icebreaker || "In progress: connect to the backend Bible service. For now this is a placeholder for the icebreaker question."} />
+        <PassageContext context={context || "In progress: connect to the backend Bible service. For now this is a placeholder for the passage context."} />
+        <PassageQuestions questions={questions.length > 0 ? questions : [{ prompt: "In progress: connect to the backend Bible service. For now this is a placeholder for the passage questions.", type: "content" }]} />
+        <LifeApplication points={lifeApplication.length > 0 ? lifeApplication : ["In progress: connect to the backend Bible service. For now this is a placeholder for the life application points."]} />
         <PassageImage imageUrl={imageUrl} description={reference} />
       </main>
     </div>

@@ -5,6 +5,6 @@ export type PassageModel = {
  reference: string
 }
 
-export function apiPassage(reference: string): Promise<void> {
-    return api.get("/passage", { params : {reference: reference} })
+export function apiPassage(reference: string): Promise<string> {
+    return api.get("/study_notes", { params : {reference: reference} })
 }
