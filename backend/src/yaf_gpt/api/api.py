@@ -4,9 +4,11 @@ from __future__ import annotations
 import logging
 
 from fastapi import FastAPI, Request
+from openai import OpenAI
 from pydantic import BaseModel, Field, model_validator
 from langchain_core.runnables import Runnable
 
+from backend.src.yaf_gpt.llm.bible_study_helper import BibleStudyHelper
 from yaf_gpt.scripts.langchain import build_runnable
 from yaf_gpt.scripts.langchain import ingest_documents
 from yaf_gpt.core import Settings
@@ -15,7 +17,6 @@ class ChatMessage(BaseModel):
     """Single chat message with a role and content."""
     role: str = Field(..., description="Role of the message sender (e.g., 'user' or 'assistant')")
     content: str = Field(..., min_length=1)
-
 
 class ChatRequest(BaseModel):
     """Incoming request payload containing the conversation history."""
@@ -28,17 +29,24 @@ class ChatRequest(BaseModel):
             raise ValueError("At least one message is required to generate a reply.")
         return self
 
-
 class ChatResponse(BaseModel):
     """Response payload wrapping the assistant's reply."""
 
     message: ChatMessage
+
+class StudyNotesRequest(BaseModel):
+    """Incoming request payload for study notes generation."""
+    reference: str = Field(..., description="Bible passage reference (e.g., 'John 3:16')")
 
 
 def create_app(config: Settings | None = None) -> FastAPI:
     """Application factory with all routes registered."""
     settings = config if config else Settings()
     runnable : Runnable = build_runnable(retriever=ingest_documents(config=settings), config=settings)
+    openai = OpenAI(api_key=settings.openai_api_key)
+    study_helper: BibleStudyHelper = BibleStudyHelper(client=openai)
+
+
     app = FastAPI(title="yaf-gpt", version="0.0.2")
 
     @app.get("/health", tags=["system"])
@@ -59,12 +67,12 @@ def create_app(config: Settings | None = None) -> FastAPI:
         return response
    
     @app.get("/study_notes")
-    async def get_study_notes():
-        return {"message": "Study notes endpoint"}
+    async def get_study_notes(request: StudyNotesRequest):
+        reference =request.reference
+        ret_val = study_helper.study(reference=reference)
+        return {"study_notes": ret_val.choices[0].message.content}
     
     return app
-
-   
 
 settings = Settings()
 
