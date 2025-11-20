@@ -8,10 +8,10 @@ from openai import OpenAI
 from pydantic import BaseModel, Field, model_validator
 from langchain_core.runnables import Runnable
 
-from backend.src.yaf_gpt.llm.bible_study_helper import BibleStudyHelper
-from yaf_gpt.scripts.langchain import build_runnable
-from yaf_gpt.scripts.langchain import ingest_documents
-from yaf_gpt.core import Settings
+from yaf_gpt.llm.bible_study_helper import BibleStudyHelper
+from yaf_gpt.scripts.langchain.build_runnable import build_runnable
+# from yaf_gpt.scripts.langchain.ingest_documents import ingest_documents
+from yaf_gpt.core.config import Settings
 
 class ChatMessage(BaseModel):
     """Single chat message with a role and content."""
@@ -42,8 +42,8 @@ class StudyNotesRequest(BaseModel):
 def create_app(config: Settings | None = None) -> FastAPI:
     """Application factory with all routes registered."""
     settings = config if config else Settings()
-    runnable : Runnable = build_runnable(retriever=ingest_documents(config=settings), config=settings)
-    openai = OpenAI(api_key=settings.openai_api_key)
+    # runnable : Runnable = build_runnable(retriever=ingest_documents(config=settings), config=settings)
+    openai = OpenAI(api_key=settings.OPENAI_API_KEY)
     study_helper: BibleStudyHelper = BibleStudyHelper(client=openai)
 
 
@@ -53,10 +53,10 @@ def create_app(config: Settings | None = None) -> FastAPI:
     async def health_check() -> dict[str, str]:
         return {"status": "ok"}
 
-    @app.post("/chat", tags=["chat"], response_model=ChatResponse)
-    async def chat_endpoint(request: ChatRequest) -> ChatResponse:
-        """Accepts chat messages and returns the assistant reply."""
-        return runnable.invoke({"question": request.message})
+    # @app.post("/chat", tags=["chat"], response_model=ChatResponse)
+    # async def chat_endpoint(request: ChatRequest) -> ChatResponse:
+    #     """Accepts chat messages and returns the assistant reply."""
+    #     return runnable.invoke({"question": request.message})
 
     @app.middleware("http")
     async def log_requests(request: Request, call_next):
