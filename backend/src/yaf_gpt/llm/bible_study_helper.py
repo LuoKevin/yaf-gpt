@@ -40,6 +40,19 @@ class BibleStudyHelper:
             ]
         )
 
+    def icebreaker_study(self, passage):
+        pass
+
+    def questions_study(self, passage):
+        pass
+
+    def passage_text_study(self, passage):
+        pass
+
+    def life_application_study(self, passage):
+        pass
+    
+
     def study(self, reference):
         env = Environment(loader=FileSystemLoader("src/yaf_gpt/templates"))
         template = env.get_template("study_notes.jinja")
