@@ -10,8 +10,10 @@ class BibleStudyHelper:
 
     client: OpenAI
 
-    TEMPLATE_DIR = "src/yaf_gpt/templates"
-    env = Environment(loader=FileSystemLoader(TEMPLATE_DIR))
+    JINJA_TEMPLATE_DIR = "src/yaf_gpt/templates"
+    env = Environment(loader=FileSystemLoader(JINJA_TEMPLATE_DIR))
+
+    
 
     def __init__(self, client):
         self.client = client
@@ -43,7 +45,7 @@ class BibleStudyHelper:
             ]
         )
 
-    def icebreaker(self, passage):
+    def icebreaker(self, passage) -> str:
         template = self.env.get_template("icebreaker.jinja")
         prompt = template.render(passage_reference=passage)
         response = self.client.chat.completions.create(
@@ -60,8 +62,21 @@ class BibleStudyHelper:
     def questions_study(self, passage):
         pass
 
-    def passage_text_study(self, passage):
-        pass
+    def passage_text(self, passage):
+        template = self.env.get_template("bible_passage.jinja")
+        prompt = template.render(passage_reference=passage)
+        response = self.client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ]
+        )
+        return response.choices[0].message.content
+    
+
 
     def life_application_study(self, passage):
         pass
@@ -76,7 +91,7 @@ class BibleStudyHelper:
         print(system_prompt)
 
         response = self.client.chat.completions.create(
-            model="gpt-5-mini",
+            model="gpt-4o-mini",
             messages=[
                 {
                     "role": "system",
@@ -99,7 +114,10 @@ if __name__ == "__main__":
     client = openai_client(config=config)
     helper = BibleStudyHelper(client=client)
 
-    print(helper.icebreaker("Luke 10:25"))
+    # print(helper.icebreaker("Luke 10:25"))
+    # print(helper.study("Luke 10:25"))
+    print(helper.passage_text("Luke 10:30-32"))
+
 
     # study_response = helper.study("Luke 10:25")
 
