@@ -47,7 +47,6 @@ def create_app(config: Settings | None = None) -> FastAPI:
     openai = OpenAI(api_key=settings.OPENAI_API_KEY)
     study_helper: BibleStudyHelper = BibleStudyHelper(client=openai)
 
-
     app = FastAPI(title="yaf-gpt", version="0.0.2")
 
 

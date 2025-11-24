@@ -51,7 +51,9 @@ class BibleStudyHelper:
 
     def life_application_study(self, passage):
         pass
-    
+
+    def image_study(self, passage):
+        pass
 
     def study(self, reference):
         env = Environment(loader=FileSystemLoader("src/yaf_gpt/templates"))

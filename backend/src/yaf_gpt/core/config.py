@@ -2,7 +2,7 @@ from pydantic import BaseModel
 from pydantic.v1 import BaseSettings
 
 class ChatConfig(BaseModel):
-    model: str = "GPT-4 mini"
+    model: str = "GPT-4o mini"
     system_prompt: str | None = None
     temperature: float  = 0.0
     max_tokens: int = 30
