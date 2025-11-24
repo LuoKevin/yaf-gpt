@@ -10,6 +10,9 @@ class BibleStudyHelper:
 
     client: OpenAI
 
+    TEMPLATE_DIR = "src/yaf_gpt/templates"
+    env = Environment(loader=FileSystemLoader(TEMPLATE_DIR))
+
     def __init__(self, client):
         self.client = client
 
@@ -40,8 +43,19 @@ class BibleStudyHelper:
             ]
         )
 
-    def icebreaker_study(self, passage):
-        pass
+    def icebreaker(self, passage):
+        template = self.env.get_template("icebreaker.jinja")
+        prompt = template.render(passage_reference=passage)
+        response = self.client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ]
+        )
+        return response.choices[0].message.content
 
     def questions_study(self, passage):
         pass
@@ -85,6 +99,8 @@ if __name__ == "__main__":
     client = openai_client(config=config)
     helper = BibleStudyHelper(client=client)
 
-    study_response = helper.study("Luke 10:25")
+    print(helper.icebreaker("Luke 10:25"))
 
-    print(study_response.choices[0].message.content)
+    # study_response = helper.study("Luke 10:25")
+
+    # print(study_response.choices[0].message.content)
