@@ -59,8 +59,19 @@ class BibleStudyHelper:
         )
         return response.choices[0].message.content
 
-    def questions_study(self, passage):
-        pass
+    def questions(self, passage) -> str:
+        template = self.env.get_template("passage_questions.jinja")
+        prompt = template.render(passage_reference=passage)
+        response = self.client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ]
+        )
+        return response.choices[0].message.content
 
     def passage_text(self, passage):
         template = self.env.get_template("bible_passage.jinja")
@@ -78,8 +89,19 @@ class BibleStudyHelper:
     
 
 
-    def life_application_study(self, passage):
-        pass
+    def life_application(self, passage) -> str:
+        template = self.env.get_template("life_application.jinja")
+        prompt = template.render(passage_reference=passage)
+        response = self.client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ]
+        )
+        return response.choices[0].message.content
 
     def image_study(self, passage):
         pass
@@ -116,7 +138,7 @@ if __name__ == "__main__":
 
     # print(helper.icebreaker("Luke 10:25"))
     # print(helper.study("Luke 10:25"))
-    print(helper.passage_text("Luke 10:30-32"))
+    print(helper.life_application("Luke 15:11-32"))
 
 
     # study_response = helper.study("Luke 10:25")
