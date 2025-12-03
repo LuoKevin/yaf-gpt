@@ -13,37 +13,8 @@ class BibleStudyHelper:
     JINJA_TEMPLATE_DIR = "src/yaf_gpt/templates"
     env = Environment(loader=FileSystemLoader(JINJA_TEMPLATE_DIR))
 
-    
-
     def __init__(self, client):
         self.client = client
-
-    def _get_passage(self, reference):
-        response = self.client.chat.completions.create(
-            model="sleepdeprived3/Reformed-Christian-Bible-Expert-12B:featherless-ai",
-            messages=[
-                {
-                    "role": "user",
-                    "content": f"Provide the full text of the Bible passage (CSB edition) for the reference: {reference}"
-                }
-            ]
-        )
-        return response.choices[0].message.content
-
-    def depr_study(self, passage):
-        response = self.client.chat.completions.create(
-            model="sleepdeprived3/Reformed-Christian-Bible-Expert-12B:featherless-ai",
-            messages=[
-                {
-                    "role": "system",
-                    "content": ChatPromptTemplate.from_file("src/yaf_gpt/templates/task.jinja")
-                },
-                {
-                    "role": "user",
-                    "content": passage
-                }
-            ]
-        )
 
     def icebreaker(self, passage) -> str:
         template = self.env.get_template("icebreaker.jinja")
@@ -104,7 +75,14 @@ class BibleStudyHelper:
         return response.choices[0].message.content
 
     def image_study(self, passage):
-        pass
+        result = client.images.generate(
+            model="gpt-image-1",
+            prompt=f"An inspiring and motivational scene from the bible passage: {passage}",
+            n=1,
+            size="512x512"
+        )
+        image_base64 = result.data[0].b64_json
+        return image_base64
 
     def study(self, reference):
         env = Environment(loader=FileSystemLoader("src/yaf_gpt/templates"))
