@@ -5,7 +5,7 @@ from typing import Optional, Tuple
 
 from langchain_openai import OpenAI
 
-from backend.src.yaf_gpt.core.config import Settings
+from src.yaf_gpt.core.config import Settings
 
 @lru_cache
 def get_settings() -> Settings:

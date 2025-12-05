@@ -1,6 +1,6 @@
 from jinja2 import Environment, FileSystemLoader
 
-from backend.src.yaf_gpt.services.factories import get_openai_client
+from src.yaf_gpt.services.factories import get_openai_client
 
 def classify_intent(text):
     client, error = get_openai_client()

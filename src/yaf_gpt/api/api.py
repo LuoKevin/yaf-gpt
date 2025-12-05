@@ -9,7 +9,7 @@ from openai import OpenAI
 from pydantic import BaseModel, Field, model_validator
 from langchain_core.runnables import Runnable
 
-from backend.src.yaf_gpt.client.bible_study_helper import BibleStudyHelper
+from src.yaf_gpt.client.bible_study_helper import BibleStudyHelper
 from yaf_gpt.scripts.langchain.build_runnable import build_runnable
 # from yaf_gpt.scripts.langchain.ingest_documents import ingest_documents
 from yaf_gpt.core.config import Settings
