@@ -16,15 +16,18 @@ class GraphState:
 
 def build_graph() -> StateGraph:
     """Build the state graph for the application."""
-    graph = StateGraph(GraphState)
-
-    # Define states
-    start_state = graph.add_state("start")
-    processing_state = graph.add_state("processing")
-    end_state = graph.add_state("end", is_end=True)
-
-    # Define transitions
-    graph.add_transition(start_state, processing_state, condition=lambda x: True)
-    graph.add_transition(processing_state, end_state, condition=lambda x: True)
-
-    return graph
+    builder = StateGraph(GraphState)
+    builder.add_node("classify_intent")
+    builder.add_node("handle_general_query")
+    builder.add_node("handle_bible_study")
+    builder.add_node("handle_spirit_advice")
+    builder.add_node("handle_passage_recs")
+    builder.add_edge("classify_intent", "handle_general_query", condition=lambda state: state.intent == UserIntent.GENERAL_QUERY)
+    builder.add_edge("classify_intent", "handle_bible_study", condition=lambda state: state.intent == UserIntent.BIBLE_STUDY)
+    builder.add_edge("classify_intent", "handle_spirit_advice", condition=lambda state: state.intent == UserIntent.SPIRIT_ADVICE)
+    builder.add_edge("classify_intent", "handle_passage_recs", condition=lambda state: state.intent == UserIntent.PASSAGE_RECS)
+    builder.add_edge("handle_general_query", END)
+    builder.add_edge("handle_bible_study", END)
+    builder.add_edge("handle_spirit_advice", END)
+    builder.add_edge("handle_passage_recs", END)    
+    return builder
