@@ -59,7 +59,6 @@ class BibleStudyHelper:
         return response.choices[0].message.content
     
 
-
     def life_application(self, passage) -> str:
         template = self.env.get_template("life_application.jinja")
         prompt = template.render(passage_reference=passage)

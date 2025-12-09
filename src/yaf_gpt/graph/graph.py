@@ -1,6 +1,8 @@
 from enum import Enum
 from langgraph.graph import END, StateGraph
 
+from src.yaf_gpt.graph.nodes.general_query import handle_general_query
+
 class UserIntent(Enum):
     GENERAL_QUERY = "general_query"
     BIBLE_STUDY = "bible_study"
@@ -12,12 +14,13 @@ class GraphState:
     intent: UserIntent
     passage_reference: str
     user_id: str
+    query: str
 
 def build_graph() -> StateGraph:
     """Build the state graph for the application."""
     builder = StateGraph(GraphState)
     builder.add_node("classify_intent")
-    builder.add_node("handle_general_query")
+    builder.add_node("handle_general_query", handle_general_query)
     builder.add_node("handle_bible_study")
     builder.add_node("handle_spirit_advice")
     builder.add_node("handle_passage_recs")
