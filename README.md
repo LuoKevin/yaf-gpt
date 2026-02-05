@@ -1,14 +1,25 @@
-# yaf-gpt
+# The Young Adult Fellowship - Generative Pre-trained Transformer (yaf-gpt)
 
-Minimal FastAPI scaffold.
+Minimal FastAPI backend + simple RAG ingest for PDFs.
 
-## Run
+## Backend
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-uvicorn app.main:app --reload
+uvicorn backend.app.main:app --reload
 ```
 
-Then open `http://127.0.0.1:8000/`.
+## RAG ingest (PDFs)
+
+1. Put PDFs in `backend/data/pdfs/`.
+2. Set `OPENAI_API_KEY` in `.env`.
+3. Run:
+
+```bash
+python -m backend.rag.ingest \
+  --input backend/data/pdfs \
+  --persist backend/data/chroma \
+  --collection documents
+```
