@@ -1,6 +1,6 @@
 # The Young Adult Fellowship - Generative Pre-trained Transformer (yaf-gpt)
 
-Minimal FastAPI backend + simple RAG ingest for PDFs.
+Welcome to YAF-GPT, your all-in-one Spiritual Learning Operative Platform
 
 ## Backend
 
