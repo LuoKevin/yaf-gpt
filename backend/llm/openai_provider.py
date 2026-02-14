@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from typing import Iterable, Optional
 
 from dotenv import load_dotenv
@@ -15,7 +16,8 @@ def _to_input(messages: list[ChatMessage]) -> list[dict]:
 
 class OpenAIChatProvider(ChatProvider):
     def __init__(self, *, api_key: Optional[str] = None, client: Optional[OpenAI] = None) -> None:
-        load_dotenv()
+        env_path = Path(__file__).resolve().parents[1] / ".env"
+        load_dotenv(env_path)
         resolved_key = api_key or os.getenv("OPENAI_API_KEY")
         if not resolved_key and client is None:
             raise ProviderError("OPENAI_API_KEY is not set")

@@ -78,7 +78,8 @@ def main() -> None:
     persist_dir = Path(args.persist)
     persist_dir.mkdir(parents=True, exist_ok=True)
 
-    load_dotenv()
+    env_path = Path(__file__).resolve().parents[1] / ".env"
+    load_dotenv(env_path)
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         raise SystemExit("OPENAI_API_KEY is not set")

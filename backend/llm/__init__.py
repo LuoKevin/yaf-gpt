@@ -2,6 +2,7 @@
 
 from .openai_provider import OpenAIChatProvider
 from .provider import ChatChunk, ChatMessage, ChatProvider, ChatResponse, ProviderError
+from .system_prompts import CALVINIST_BIBLE_STUDY, GENERAL_CHRISTIAN_BIBLE_STUDY
 
 __all__ = [
     "ChatChunk",
@@ -10,4 +11,6 @@ __all__ = [
     "ProviderError",
     "OpenAIChatProvider",
     "ChatProvider",
+    "CALVINIST_BIBLE_STUDY",
+    "GENERAL_CHRISTIAN_BIBLE_STUDY",
 ]

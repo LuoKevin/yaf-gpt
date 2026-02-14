@@ -5,7 +5,7 @@ services:
     ports:
       - "8000:8000"
     env_file:
-      - .env
+      - backend/.env
     volumes:
       - ./:/app
 
@@ -15,6 +15,6 @@ services:
     ports:
       - "8501:8501"
     env_file:
-      - .env
+      - backend/.env
     volumes:
       - ./:/app

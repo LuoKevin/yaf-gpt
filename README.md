@@ -26,7 +26,7 @@ docker compose up --build
 ## RAG ingest (PDFs)
 
 1. Put PDFs in `backend/data/pdfs/`.
-2. Set `OPENAI_API_KEY` in `.env`.
+2. Set `OPENAI_API_KEY` in `backend/.env`.
 3. Run:
 
 ```bash
@@ -48,4 +48,3 @@ https://www.desiringgod.org/scripture/luke/labs
 
 The Gospel Coalition Luke study: TGC Course | Knowing the Bible: Luke | 12-week Bible Study (thegospelcoalition.org):
 https://www.thegospelcoalition.org/course/knowing-bible-luke/#week-1-overview
-
