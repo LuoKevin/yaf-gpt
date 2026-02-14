@@ -7,8 +7,20 @@ Welcome to YAF-GPT, your all-in-one Spiritual Learning Operative Platform
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r backend/requirements.txt
 uvicorn backend.app.main:app --reload
+```
+
+## Streamlit UI
+
+```bash
+streamlit run backend/streamlit_app.py
+```
+
+## Docker (hot-reload)
+
+```bash
+docker compose up --build
 ```
 
 ## RAG ingest (PDFs)

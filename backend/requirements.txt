@@ -4,3 +4,4 @@ openai
 chromadb
 pypdf
 python-dotenv
+streamlit
