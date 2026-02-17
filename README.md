@@ -37,6 +37,7 @@ python -m backend.rag.ingest \
 ```
 
 ## Reference Materials (For RAG?)
+
 Bible Project (very big picture summary): Book of Luke | Guide with Key Information and Resources (bibleproject.com)
 https://bibleproject.com/guides/book-of-luke/
 
