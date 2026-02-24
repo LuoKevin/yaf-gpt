@@ -55,7 +55,6 @@ class _StudyPlanServiceStub:
                 )
                 for i in range(1, 7)
             ],
-            leader_notes=["Keep group centered on Scripture."],
             model="gpt-4o-mini",
             usage=UsageMetrics(prompt_tokens=10, completion_tokens=20, total_tokens=30),
         )
@@ -111,4 +110,3 @@ class APIRouteTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

@@ -100,7 +100,6 @@ class StudyPlanService:
             passage_title=llm_output.passage_title,
             context_points=llm_output.context_points,
             discussion_questions=llm_output.discussion_questions,
-            leader_notes=llm_output.leader_notes,
             model=model_name,
             usage=usage,
         )
@@ -164,4 +163,3 @@ class StudyPlanService:
                 raise StudyPlanValidationError("Model output did not match study-plan schema.") from exc
 
         raise StudyPlanValidationError("Failed to generate a valid study plan.")
-

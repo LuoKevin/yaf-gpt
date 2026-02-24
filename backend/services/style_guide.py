@@ -14,15 +14,18 @@ class LukeStyleGuide:
     canonical_sections: list[str]
 
     def to_instruction_block(self) -> str:
-        ordered = ", ".join(self.canonical_sections)
+        sections = [section for section in self.canonical_sections if section != "Leader Notes"]
+        ordered = ", ".join(sections)
         frequencies = ", ".join(
-            f"{section}: {count}" for section, count in sorted(self.section_frequency.items())
+            f"{section}: {count}"
+            for section, count in sorted(self.section_frequency.items())
+            if section != "Leader Notes"
         )
         return (
             "Use this section structure inspired by the Luke study docs:\n"
             f"- Preferred section order: {ordered}\n"
             f"- Observed heading frequency across Luke docs: {frequencies}\n"
-            "- Always include Passage, Context, Questions, and Leader Notes."
+            "- Always include Passage, Context, and Questions."
         )
 
 
@@ -38,7 +41,7 @@ _HEADING_ALIASES = {
     "icebreaker": "Ice Breaker",
 }
 
-_REQUIRED_SECTIONS = ["Passage", "Context", "Questions", "Leader Notes"]
+_REQUIRED_SECTIONS = ["Passage", "Context", "Questions"]
 
 
 def _extract_lines_from_docx(path: Path) -> list[str]:
@@ -91,6 +94,8 @@ def load_luke_style_guide(doc_root: str = "backend/data/study_docx/Luke") -> Luk
 
     canonical_sections: list[str] = []
     for section in ordered_by_position:
+        if section == "Leader Notes":
+            continue
         if section not in canonical_sections:
             canonical_sections.append(section)
     for section in _REQUIRED_SECTIONS:
@@ -98,4 +103,3 @@ def load_luke_style_guide(doc_root: str = "backend/data/study_docx/Luke") -> Luk
             canonical_sections.append(section)
 
     return LukeStyleGuide(section_frequency=dict(counts), canonical_sections=canonical_sections)
-

@@ -21,8 +21,7 @@ def _valid_output_json() -> str:
         "{"
         '"passage_title":"Jesus Foretells Turmoil and Hope",'
         '"context_points":["Temple context","Audience context"],'
-        f'"discussion_questions":{questions!r},'
-        '"leader_notes":["Keep the group text-centered."]'
+        f'"discussion_questions":{questions!r}'
         "}"
     ).replace("'", '"')
 
@@ -86,4 +85,3 @@ class StudyPlanServiceTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

@@ -9,6 +9,8 @@ from backend.llm.system_prompts import CALVINIST_BIBLE_STUDY, YOUNG_ADULT_COMMUN
 from .style_guide import LukeStyleGuide
 
 DEFAULT_QUESTION_COUNT = 6
+DEFAULT_GROUP_SIZE = "3-5 participants plus 1 discussion leader"
+DEFAULT_SESSION_DURATION_MINUTES = 60
 
 
 def _schema_json() -> str:
@@ -51,8 +53,12 @@ def build_study_plan_messages(
         f"User Notes: {notes_text}\n\n"
         f"{style_guide.to_instruction_block()}\n"
         f"- Include exactly {DEFAULT_QUESTION_COUNT} discussion questions.\n"
+        f"- Design for a {DEFAULT_SESSION_DURATION_MINUTES}-minute study with {DEFAULT_GROUP_SIZE}.\n"
+        "- Questions must follow the passage flow from beginning to end.\n"
+        "- Each question should be open-ended, text-anchored, and promote active group discussion.\n"
+        "- Spread difficulty progressively: observation -> interpretation -> application.\n"
+        "- Add at least one follow-up prompt per question that invites quieter participants to contribute.\n"
         "- Keep context points historically and textually grounded.\n"
-        "- Leader notes should include facilitation tips and theological caution where relevant.\n"
         "- Return valid JSON only. No markdown fences, no extra keys, no prose outside JSON.\n\n"
         f"JSON Schema:\n{_schema_json()}\n"
     )
@@ -67,10 +73,10 @@ def build_repair_messages(messages: list[ChatMessage], invalid_output: str) -> l
     repair_instruction = (
         "Reformat your previous answer into valid JSON that strictly matches the required schema. "
         f"Include exactly {DEFAULT_QUESTION_COUNT} discussion questions. "
+        "Ensure questions move through the passage in order and are discussion-oriented for a 60-minute group. "
         "Return JSON only with no markdown fences."
     )
     return messages + [
         ChatMessage(role="assistant", content=invalid_output),
         ChatMessage(role="user", content=repair_instruction),
     ]
-
