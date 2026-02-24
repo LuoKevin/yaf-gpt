@@ -41,6 +41,10 @@ class BiblePassageResponse(BaseModel):
 class StudyPlanRequest(BaseModel):
     reference: str = Field(..., min_length=1, description="Bible reference, e.g. Romans 8:28-39")
     translation: TranslationCode = Field(default="WEB")
+    passage_text: Optional[str] = Field(
+        default=None,
+        description="Optional passage text override. If absent, the API looks up text by reference.",
+    )
     goals: Optional[str] = Field(
         default=None,
         description="Optional learner goals to tailor the study guide.",
@@ -57,16 +61,17 @@ class StudyPlanSection(BaseModel):
     scripture_references: list[str] = Field(default_factory=list)
 
 
-class StudyPlanResponse(BaseModel):
-    reference: str
-    translation: TranslationCode = Field(default="WEB")
-    passage_text: str
-    plan_title: str
-    summary: str
-    sections: list[StudyPlanSection]
-    reflection_questions: list[str]
-    prayer_prompts: list[str]
-    caution_notes: list[str]
+class StudyQuestion(BaseModel):
+    question: str = Field(..., min_length=1)
+    intent: str = Field(..., min_length=1)
+    follow_up: str = Field(..., min_length=1)
+
+
+class StudyPlanLLMOutput(BaseModel):
+    passage_title: str = Field(..., min_length=1)
+    context_points: list[str] = Field(..., min_length=1)
+    discussion_questions: list[StudyQuestion] = Field(..., min_length=6, max_length=6)
+    leader_notes: list[str] = Field(..., min_length=1)
 
 
 class PassageImageRequest(BaseModel):
@@ -109,6 +114,19 @@ class UsageMetrics(BaseModel):
     prompt_tokens: Optional[int] = None
     completion_tokens: Optional[int] = None
     total_tokens: Optional[int] = None
+
+
+class StudyPlanResponse(BaseModel):
+    reference: str
+    normalized_reference: str
+    translation: TranslationCode = Field(default="WEB")
+    passage_text: str
+    passage_title: str
+    context_points: list[str] = Field(..., min_length=1)
+    discussion_questions: list[StudyQuestion] = Field(..., min_length=6, max_length=6)
+    leader_notes: list[str] = Field(..., min_length=1)
+    model: str
+    usage: Optional[UsageMetrics] = None
 
 
 class PersonaChatResponse(BaseModel):
