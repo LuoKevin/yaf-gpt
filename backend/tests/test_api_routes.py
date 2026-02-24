@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 from backend.app.main import app
 from backend.app.routes.bible import get_bible_provider
 from backend.app.routes.study_plan import get_study_plan_service
-from backend.app.schemas import StudyPlanResponse, StudyQuestion, UsageMetrics
+from backend.app.schemas import StudyPlanResponse, UsageMetrics
 from backend.services.bible_lookup import (
     InvalidReferenceError,
     PassageData,
@@ -47,14 +47,7 @@ class _StudyPlanServiceStub:
             passage_text="Passage text",
             passage_title="Sample Title",
             context_points=["Point 1"],
-            discussion_questions=[
-                StudyQuestion(
-                    question=f"Q{i}",
-                    intent="Drive interpretation",
-                    follow_up="Where do you see that?",
-                )
-                for i in range(1, 7)
-            ],
+            discussion_questions=[f"Q{i}" for i in range(1, 7)],
             model="gpt-4o-mini",
             usage=UsageMetrics(prompt_tokens=10, completion_tokens=20, total_tokens=30),
         )

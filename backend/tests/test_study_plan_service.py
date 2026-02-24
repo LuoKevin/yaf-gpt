@@ -9,14 +9,7 @@ from backend.services.study_plan_service import StudyPlanService, StudyPlanValid
 
 
 def _valid_output_json() -> str:
-    questions = [
-        {
-            "question": f"Question {i}",
-            "intent": "Drive observation and interpretation.",
-            "follow_up": "What in the text supports your answer?",
-        }
-        for i in range(1, 7)
-    ]
+    questions = [f"Question {i}" for i in range(1, 7)]
     return (
         "{"
         '"passage_title":"Jesus Foretells Turmoil and Hope",'

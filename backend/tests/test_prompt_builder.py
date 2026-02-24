@@ -33,7 +33,9 @@ class PromptBuilderTests(unittest.TestCase):
         self.assertIn("3-5 participants plus 1 discussion leader", user_msg)
         self.assertIn("follow the passage flow from beginning to end", user_msg)
         self.assertIn("open-ended, text-anchored", user_msg)
-        self.assertIn("observation -> interpretation -> application", user_msg)
+        self.assertIn("plain question strings only", user_msg)
+        self.assertIn("First 4 questions must focus solely on understanding and discussing the passage text", user_msg)
+        self.assertIn("Final 2 questions must focus on reflection", user_msg)
 
 
 if __name__ == "__main__":

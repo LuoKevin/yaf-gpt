@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from backend.app.schemas import StudyPlanRequest, StudyQuestion  # noqa: E402
+from backend.app.schemas import StudyPlanRequest  # noqa: E402
 from backend.services.bible_lookup import (  # noqa: E402
     InvalidReferenceError,
     PassageNotFoundError,
@@ -50,12 +50,10 @@ with st.sidebar:
     submitted = st.button("Generate Study Plan", type="primary", use_container_width=True)
 
 
-def render_questions(questions: list[StudyQuestion]) -> None:
-    for idx, item in enumerate(questions, start=1):
+def render_questions(questions: list[str]) -> None:
+    for idx, question in enumerate(questions, start=1):
         with st.container(border=True):
-            st.markdown(f"**Q{idx}. {item.question}**")
-            st.markdown(f"- Intent: {item.intent}")
-            st.markdown(f"- Follow-up: {item.follow_up}")
+            st.markdown(f"**Q{idx}. {question}**")
 
 
 if submitted:

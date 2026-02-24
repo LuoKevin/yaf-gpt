@@ -55,9 +55,10 @@ def build_study_plan_messages(
         f"- Include exactly {DEFAULT_QUESTION_COUNT} discussion questions.\n"
         f"- Design for a {DEFAULT_SESSION_DURATION_MINUTES}-minute study with {DEFAULT_GROUP_SIZE}.\n"
         "- Questions must follow the passage flow from beginning to end.\n"
+        "- Questions should be plain question strings only. Do not include intent or follow-up fields.\n"
+        "- First 4 questions must focus solely on understanding and discussing the passage text.\n"
+        "- Final 2 questions must focus on reflection, personal response, and lessons from the passage.\n"
         "- Each question should be open-ended, text-anchored, and promote active group discussion.\n"
-        "- Spread difficulty progressively: observation -> interpretation -> application.\n"
-        "- Add at least one follow-up prompt per question that invites quieter participants to contribute.\n"
         "- Keep context points historically and textually grounded.\n"
         "- Return valid JSON only. No markdown fences, no extra keys, no prose outside JSON.\n\n"
         f"JSON Schema:\n{_schema_json()}\n"
@@ -74,6 +75,8 @@ def build_repair_messages(messages: list[ChatMessage], invalid_output: str) -> l
         "Reformat your previous answer into valid JSON that strictly matches the required schema. "
         f"Include exactly {DEFAULT_QUESTION_COUNT} discussion questions. "
         "Ensure questions move through the passage in order and are discussion-oriented for a 60-minute group. "
+        "Use plain question strings only; no intent or follow-up fields. "
+        "Make first 4 questions passage-focused and final 2 questions reflective. "
         "Return JSON only with no markdown fences."
     )
     return messages + [

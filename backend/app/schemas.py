@@ -61,16 +61,10 @@ class StudyPlanSection(BaseModel):
     scripture_references: list[str] = Field(default_factory=list)
 
 
-class StudyQuestion(BaseModel):
-    question: str = Field(..., min_length=1)
-    intent: str = Field(..., min_length=1)
-    follow_up: str = Field(..., min_length=1)
-
-
 class StudyPlanLLMOutput(BaseModel):
     passage_title: str = Field(..., min_length=1)
     context_points: list[str] = Field(..., min_length=1)
-    discussion_questions: list[StudyQuestion] = Field(..., min_length=6, max_length=6)
+    discussion_questions: list[str] = Field(..., min_length=6, max_length=6)
 
 
 class PassageImageRequest(BaseModel):
@@ -122,7 +116,7 @@ class StudyPlanResponse(BaseModel):
     passage_text: str
     passage_title: str
     context_points: list[str] = Field(..., min_length=1)
-    discussion_questions: list[StudyQuestion] = Field(..., min_length=6, max_length=6)
+    discussion_questions: list[str] = Field(..., min_length=6, max_length=6)
     model: str
     usage: Optional[UsageMetrics] = None
 
