@@ -9,6 +9,7 @@ from backend.llm.system_prompts import CALVINIST_BIBLE_STUDY, YOUNG_ADULT_COMMUN
 from .style_guide import LukeStyleGuide
 
 DEFAULT_QUESTION_COUNT = 6
+MAX_REFLECTION_QUESTION_COUNT = 3
 DEFAULT_GROUP_SIZE = "3-5 participants plus 1 discussion leader"
 DEFAULT_SESSION_DURATION_MINUTES = 60
 
@@ -53,11 +54,14 @@ def build_study_plan_messages(
         f"User Notes: {notes_text}\n\n"
         f"{style_guide.to_instruction_block()}\n"
         f"- Include exactly {DEFAULT_QUESTION_COUNT} discussion questions.\n"
+        f"- Include 1 to {MAX_REFLECTION_QUESTION_COUNT} reflection questions in a separate reflection_questions section.\n"
         f"- Design for a {DEFAULT_SESSION_DURATION_MINUTES}-minute study with {DEFAULT_GROUP_SIZE}.\n"
         "- Questions must follow the passage flow from beginning to end.\n"
         "- Questions should be plain question strings only. Do not include intent or follow-up fields.\n"
-        "- First 4 questions must focus solely on understanding and discussing the passage text.\n"
-        "- Final 2 questions must focus on reflection, personal response, and lessons from the passage.\n"
+        "- discussion_questions must focus solely on understanding and discussing the passage text.\n"
+        "- reflection_questions must be at the end and focus on personal reflection, application, and life lessons.\n"
+        "- Every reflection question must directly anchor to this passage by naming a specific verse reference or phrase from the text.\n"
+        "- Avoid generic reflection prompts that could fit any passage.\n"
         "- Each question should be open-ended, text-anchored, and promote active group discussion.\n"
         "- Keep context points historically and textually grounded.\n"
         "- Return valid JSON only. No markdown fences, no extra keys, no prose outside JSON.\n\n"
@@ -74,9 +78,11 @@ def build_repair_messages(messages: list[ChatMessage], invalid_output: str) -> l
     repair_instruction = (
         "Reformat your previous answer into valid JSON that strictly matches the required schema. "
         f"Include exactly {DEFAULT_QUESTION_COUNT} discussion questions. "
+        f"Include 1 to {MAX_REFLECTION_QUESTION_COUNT} reflection questions in reflection_questions. "
         "Ensure questions move through the passage in order and are discussion-oriented for a 60-minute group. "
         "Use plain question strings only; no intent or follow-up fields. "
-        "Make first 4 questions passage-focused and final 2 questions reflective. "
+        "Keep discussion_questions passage-focused and reflection_questions application-focused. "
+        "Each reflection question must explicitly reference the passage text (specific verse or phrase), not generic themes. "
         "Return JSON only with no markdown fences."
     )
     return messages + [

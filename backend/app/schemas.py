@@ -65,6 +65,7 @@ class StudyPlanLLMOutput(BaseModel):
     passage_title: str = Field(..., min_length=1)
     context_points: list[str] = Field(..., min_length=1)
     discussion_questions: list[str] = Field(..., min_length=6, max_length=6)
+    reflection_questions: list[str] = Field(..., min_length=1, max_length=3)
 
 
 class PassageImageRequest(BaseModel):
@@ -117,6 +118,7 @@ class StudyPlanResponse(BaseModel):
     passage_title: str
     context_points: list[str] = Field(..., min_length=1)
     discussion_questions: list[str] = Field(..., min_length=6, max_length=6)
+    reflection_questions: list[str] = Field(..., min_length=1, max_length=3)
     model: str
     usage: Optional[UsageMetrics] = None
 

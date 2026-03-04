@@ -48,6 +48,7 @@ class _StudyPlanServiceStub:
             passage_title="Sample Title",
             context_points=["Point 1"],
             discussion_questions=[f"Q{i}" for i in range(1, 7)],
+            reflection_questions=["How should this passage shape your week?"],
             model="gpt-4o-mini",
             usage=UsageMetrics(prompt_tokens=10, completion_tokens=20, total_tokens=30),
         )
@@ -77,6 +78,7 @@ class APIRouteTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         body = response.json()
         self.assertEqual(len(body["discussion_questions"]), 6)
+        self.assertLessEqual(len(body["reflection_questions"]), 3)
         self.assertEqual(body["model"], "gpt-4o-mini")
 
     def test_study_plan_invalid_reference_maps_to_400(self) -> None:

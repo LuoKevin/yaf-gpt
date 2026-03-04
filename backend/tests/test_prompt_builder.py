@@ -29,13 +29,17 @@ class PromptBuilderTests(unittest.TestCase):
         self.assertIn("Questions", user_msg)
         self.assertIn("exactly 6 discussion questions", user_msg)
         self.assertIn("discussion_questions", user_msg)
+        self.assertIn("reflection_questions", user_msg)
+        self.assertIn("Include 1 to 3 reflection questions", user_msg)
         self.assertIn("60-minute study", user_msg)
         self.assertIn("3-5 participants plus 1 discussion leader", user_msg)
         self.assertIn("follow the passage flow from beginning to end", user_msg)
         self.assertIn("open-ended, text-anchored", user_msg)
         self.assertIn("plain question strings only", user_msg)
-        self.assertIn("First 4 questions must focus solely on understanding and discussing the passage text", user_msg)
-        self.assertIn("Final 2 questions must focus on reflection", user_msg)
+        self.assertIn("discussion_questions must focus solely on understanding and discussing the passage text", user_msg)
+        self.assertIn("reflection_questions must be at the end", user_msg)
+        self.assertIn("must directly anchor to this passage", user_msg)
+        self.assertIn("Avoid generic reflection prompts", user_msg)
 
 
 if __name__ == "__main__":

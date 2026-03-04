@@ -97,6 +97,9 @@ if result is not None:
     st.markdown("### Questions")
     render_questions(result.discussion_questions)
 
+    st.markdown("### Reflection Questions")
+    render_questions(result.reflection_questions)
+
     if result.usage is not None:
         st.caption(
             "Tokens | "

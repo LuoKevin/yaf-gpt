@@ -10,11 +10,13 @@ from backend.services.study_plan_service import StudyPlanService, StudyPlanValid
 
 def _valid_output_json() -> str:
     questions = [f"Question {i}" for i in range(1, 7)]
+    reflection = ["What is one lesson from this passage you need to apply this week?"]
     return (
         "{"
         '"passage_title":"Jesus Foretells Turmoil and Hope",'
         '"context_points":["Temple context","Audience context"],'
-        f'"discussion_questions":{questions!r}'
+        f'"discussion_questions":{questions!r},'
+        f'"reflection_questions":{reflection!r}'
         "}"
     ).replace("'", '"')
 
@@ -62,6 +64,7 @@ class StudyPlanServiceTests(unittest.TestCase):
 
         self.assertEqual(response.reference, "Luke 21:5-28")
         self.assertEqual(len(response.discussion_questions), 6)
+        self.assertLessEqual(len(response.reflection_questions), 3)
         self.assertEqual(response.model, "gpt-4o-mini")
         self.assertIsNotNone(response.usage)
 

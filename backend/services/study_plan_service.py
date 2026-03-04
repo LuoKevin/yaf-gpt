@@ -100,6 +100,7 @@ class StudyPlanService:
             passage_title=llm_output.passage_title,
             context_points=llm_output.context_points,
             discussion_questions=llm_output.discussion_questions,
+            reflection_questions=llm_output.reflection_questions,
             model=model_name,
             usage=usage,
         )
