@@ -3,6 +3,7 @@ from __future__ import annotations
 import unittest
 
 from backend.services.prompt_builder import build_study_plan_messages
+from backend.services.study_docx_structure import LukeStructureContext, LukeStructureExample
 from backend.services.style_guide import LukeStyleGuide
 
 
@@ -18,6 +19,7 @@ class PromptBuilderTests(unittest.TestCase):
             translation="WEB",
             passage_text="Sample passage text.",
             style_guide=style,
+            structure_context=None,
             goals=None,
             user_notes=None,
         )
@@ -40,6 +42,50 @@ class PromptBuilderTests(unittest.TestCase):
         self.assertIn("reflection_questions must be at the end", user_msg)
         self.assertIn("must directly anchor to this passage", user_msg)
         self.assertIn("Avoid generic reflection prompts", user_msg)
+
+    def test_includes_structure_rag_block_when_available(self) -> None:
+        style = LukeStyleGuide(
+            section_frequency={"Passage": 40, "Context": 39, "Questions": 39},
+            canonical_sections=["Passage", "Context", "Questions"],
+        )
+        structure_context = LukeStructureContext.from_examples(
+            [
+                LukeStructureExample(
+                    source_path="backend/data/study_docx/Luke/Luke 21_5-28.docx",
+                    normalized_reference="Luke 21:5-28",
+                    start_chapter=21,
+                    start_verse=5,
+                    end_chapter=21,
+                    end_verse=28,
+                    section_order=["Passage", "Context", "Questions"],
+                    question_count=6,
+                    has_ice_breaker=False,
+                    has_leader_notes=True,
+                    context_points=["Temple was central to Jewish life."],
+                    discussion_questions=[
+                        "What does Jesus say will happen to the temple?",
+                        "How should disciples respond to turmoil?",
+                    ],
+                )
+            ]
+        )
+        messages = build_study_plan_messages(
+            reference="Luke 21:5-28",
+            normalized_reference="Luke 21:5-28",
+            translation="WEB",
+            passage_text="Sample passage text.",
+            style_guide=style,
+            structure_context=structure_context,
+            goals=None,
+            user_notes=None,
+        )
+
+        user_msg = messages[1].content
+        self.assertIn("Retrieved exemplar references: Luke 21:5-28", user_msg)
+        self.assertIn("Typical discussion question count in nearby docs: 6", user_msg)
+        self.assertIn("Temple was central to Jewish life.", user_msg)
+        self.assertIn("What does Jesus say will happen to the temple?", user_msg)
+        self.assertIn("Use these as format/style examples only", user_msg)
 
 
 if __name__ == "__main__":

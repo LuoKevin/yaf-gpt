@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 from dataclasses import dataclass
 from typing import Optional
@@ -20,9 +21,11 @@ from .bible_lookup import (
     PassageData,
 )
 from .prompt_builder import build_repair_messages, build_study_plan_messages
+from .study_docx_structure import LukeStructureContext, LukeStructureRetriever
 from .style_guide import load_luke_style_guide
 
 DEFAULT_STUDY_PLAN_MODEL = "gpt-4o-mini"
+logger = logging.getLogger(__name__)
 
 
 class StudyPlanGenerationError(RuntimeError):
@@ -72,21 +75,25 @@ class StudyPlanService:
         *,
         bible_provider: Optional[BibleProvider] = None,
         chat_provider: Optional[ChatProvider] = None,
+        structure_retriever: Optional[LukeStructureRetriever] = None,
         model: str = DEFAULT_STUDY_PLAN_MODEL,
     ) -> None:
         self._bible_provider = bible_provider or BibleAPIProvider()
         self._chat_provider = chat_provider or OpenAIChatProvider()
+        self._structure_retriever = structure_retriever or LukeStructureRetriever()
         self._model = model
 
     def generate_study_plan(self, payload: StudyPlanRequest) -> StudyPlanResponse:
         passage = self._resolve_passage(payload)
         style_guide = load_luke_style_guide()
+        structure_context = self._retrieve_structure_context(passage.normalized_reference)
         base_messages = build_study_plan_messages(
             reference=payload.reference,
             normalized_reference=passage.normalized_reference,
             translation=passage.translation,
             passage_text=passage.passage_text,
             style_guide=style_guide,
+            structure_context=structure_context,
             goals=payload.goals,
             user_notes=payload.user_notes,
         )
@@ -126,6 +133,33 @@ class StudyPlanService:
             translation=passage.translation,
             passage_text=passage.text,
         )
+
+    def _retrieve_structure_context(
+        self, normalized_reference: str
+    ) -> Optional[LukeStructureContext]:
+        try:
+            structure_context = self._structure_retriever.retrieve(normalized_reference)
+        except Exception as exc:  # pragma: no cover - defensive fallback
+            logger.warning(
+                "Failed to retrieve Luke structure exemplars for %s: %s",
+                normalized_reference,
+                exc,
+            )
+            return None
+
+        if structure_context is None:
+            logger.debug(
+                "No Luke structure exemplars available for %s; using style-guide fallback only.",
+                normalized_reference,
+            )
+            return None
+
+        logger.debug(
+            "Using Luke structure exemplars for %s: %s",
+            normalized_reference,
+            [example.normalized_reference for example in structure_context.examples],
+        )
+        return structure_context
 
     def _generate_with_retry(
         self, base_messages: list[ChatMessage]

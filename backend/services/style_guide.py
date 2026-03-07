@@ -29,7 +29,7 @@ class LukeStyleGuide:
         )
 
 
-_HEADING_ALIASES = {
+STUDY_DOC_HEADING_ALIASES = {
     "passage": "Passage",
     "context": "Context",
     "background": "Context",
@@ -41,7 +41,7 @@ _HEADING_ALIASES = {
     "icebreaker": "Ice Breaker",
 }
 
-_REQUIRED_SECTIONS = ["Passage", "Context", "Questions"]
+REQUIRED_STUDY_PLAN_SECTIONS = ["Passage", "Context", "Questions"]
 
 
 def _extract_lines_from_docx(path: Path) -> list[str]:
@@ -53,7 +53,7 @@ def _extract_lines_from_docx(path: Path) -> list[str]:
 
 def _normalize_heading(line: str) -> str | None:
     cleaned = re.sub(r"[:/]+$", "", line.strip().lower())
-    return _HEADING_ALIASES.get(cleaned)
+    return STUDY_DOC_HEADING_ALIASES.get(cleaned)
 
 
 @lru_cache(maxsize=1)
@@ -80,8 +80,8 @@ def load_luke_style_guide(doc_root: str = "backend/data/study_docx/Luke") -> Luk
 
     if not counts:
         return LukeStyleGuide(
-            section_frequency={section: 0 for section in _REQUIRED_SECTIONS},
-            canonical_sections=list(_REQUIRED_SECTIONS),
+            section_frequency={section: 0 for section in REQUIRED_STUDY_PLAN_SECTIONS},
+            canonical_sections=list(REQUIRED_STUDY_PLAN_SECTIONS),
         )
 
     ordered_by_position = sorted(
@@ -98,7 +98,7 @@ def load_luke_style_guide(doc_root: str = "backend/data/study_docx/Luke") -> Luk
             continue
         if section not in canonical_sections:
             canonical_sections.append(section)
-    for section in _REQUIRED_SECTIONS:
+    for section in REQUIRED_STUDY_PLAN_SECTIONS:
         if section not in canonical_sections:
             canonical_sections.append(section)
 

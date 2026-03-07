@@ -6,6 +6,7 @@ from backend.app.schemas import StudyPlanLLMOutput
 from backend.llm import ChatMessage
 from backend.llm.system_prompts import CALVINIST_BIBLE_STUDY, YOUNG_ADULT_COMMUNICATION
 
+from .study_docx_structure import LukeStructureContext
 from .style_guide import LukeStyleGuide
 
 DEFAULT_QUESTION_COUNT = 6
@@ -29,11 +30,13 @@ def build_study_plan_messages(
     translation: str,
     passage_text: str,
     style_guide: LukeStyleGuide,
+    structure_context: LukeStructureContext | None = None,
     goals: str | None,
     user_notes: str | None,
 ) -> list[ChatMessage]:
     goals_text = goals.strip() if goals else "Not provided."
     notes_text = user_notes.strip() if user_notes else "Not provided."
+    structure_block = f"{structure_context.to_instruction_block()}\n" if structure_context else ""
 
     system_prompt = (
         f"{CALVINIST_BIBLE_STUDY} "
@@ -53,6 +56,7 @@ def build_study_plan_messages(
         f"Goals: {goals_text}\n"
         f"User Notes: {notes_text}\n\n"
         f"{style_guide.to_instruction_block()}\n"
+        f"{structure_block}"
         f"- Include exactly {DEFAULT_QUESTION_COUNT} discussion questions.\n"
         f"- Include 1 to {MAX_REFLECTION_QUESTION_COUNT} reflection questions in a separate reflection_questions section.\n"
         f"- Design for a {DEFAULT_SESSION_DURATION_MINUTES}-minute study with {DEFAULT_GROUP_SIZE}.\n"
