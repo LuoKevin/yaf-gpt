@@ -18,7 +18,7 @@ def _schema_json() -> str:
     if hasattr(StudyPlanLLMOutput, "model_json_schema"):
         schema = StudyPlanLLMOutput.model_json_schema()
     else:
-        schema = StudyPlanLLMOutput.schema()
+        schema = StudyPlanLLMOutput.model_json_schema()
     return json.dumps(schema, indent=2)
 
 
