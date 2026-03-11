@@ -315,6 +315,10 @@ textarea {
   margin-top: 10px;
 }
 
+.action-row-single {
+  grid-template-columns: 1fr;
+}
+
 .primary-button,
 .secondary-button {
   border: none;
@@ -413,6 +417,91 @@ textarea {
   padding-left: 24px;
 }
 
+.image-preview {
+  width: 100%;
+  border-radius: 20px;
+  border: 1px solid rgba(113, 85, 57, 0.14);
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.prompt-note {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: #6a5542;
+}
+
+.chat-thread {
+  display: grid;
+  gap: 10px;
+}
+
+.chat-bubble {
+  margin: 0;
+  border-radius: 16px;
+  padding: 12px 14px;
+}
+
+.chat-bubble p {
+  margin: 0;
+  line-height: 1.6;
+}
+
+.chat-bubble.user {
+  background: rgba(241, 223, 196, 0.7);
+}
+
+.chat-bubble.assistant {
+  background: rgba(246, 240, 229, 0.85);
+}
+
+.mini-action-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.hymn-section {
+  padding: 14px;
+  border-radius: 16px;
+  background: rgba(248, 241, 230, 0.9);
+}
+
+.status-inline {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.job-status {
+  display: inline-flex;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  background: rgba(113, 85, 57, 0.12);
+}
+
+.job-status.queued,
+.job-status.in_progress {
+  background: rgba(212, 159, 95, 0.24);
+  color: #704e31;
+}
+
+.job-status.completed {
+  background: rgba(76, 139, 95, 0.2);
+  color: #2f5d3e;
+}
+
+.job-status.failed {
+  background: rgba(169, 94, 67, 0.2);
+  color: #7f3f2b;
+}
+
+audio {
+  width: 100%;
+}
+
 @media (max-width: 1080px) {
   .workspace {
     grid-template-columns: 1fr;
@@ -447,6 +536,10 @@ textarea {
   }
 
   .action-row {
+    grid-template-columns: 1fr;
+  }
+
+  .mini-action-row {
     grid-template-columns: 1fr;
   }
 }

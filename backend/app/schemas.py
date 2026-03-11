@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 TranslationCode = Literal["WEB", "KJV"]
 ImageStyle = Literal["modern_editorial_illustration"]
 ChatRole = Literal["user", "assistant"]
+HymnJobStatus = Literal["queued", "in_progress", "completed", "failed"]
 
 
 class APIErrorResponse(BaseModel):
@@ -127,3 +128,58 @@ class PersonaChatResponse(BaseModel):
     reply: str
     model: str
     usage: Optional[UsageMetrics] = None
+
+
+class HymnSection(BaseModel):
+    label: str = Field(..., min_length=1, description="Section label, for example Verse 1 or Chorus.")
+    lyrics: str = Field(..., min_length=1)
+
+
+class HymnLyrics(BaseModel):
+    title: str = Field(..., min_length=1)
+    theme: str = Field(..., min_length=1)
+    scripture_references: list[str] = Field(..., min_length=1, max_length=6)
+    sections: list[HymnSection] = Field(..., min_length=2, max_length=8)
+
+
+class HymnGenerateRequest(BaseModel):
+    reference: str = Field(..., min_length=1, description="Bible reference, e.g. Psalm 23:1-6")
+    translation: TranslationCode = Field(default="WEB")
+    passage_text: Optional[str] = Field(
+        default=None,
+        description="Optional passage text override. If absent, the API looks up text by reference.",
+    )
+    style_hint: str = Field(
+        default="modern worship hymn, acoustic",
+        min_length=3,
+        description="High-level musical style hint used for lyric and music generation.",
+    )
+    mood_hint: Optional[str] = Field(
+        default=None,
+        description="Optional mood hint, for example hopeful, reflective, triumphant.",
+    )
+    user_notes: Optional[str] = Field(
+        default=None,
+        description="Optional constraints or context for lyric generation.",
+    )
+
+
+class HymnGenerateResponse(BaseModel):
+    reference: str
+    normalized_reference: str
+    translation: TranslationCode = Field(default="WEB")
+    passage_text: str
+    hymn: HymnLyrics
+    job_id: str
+    job_status: HymnJobStatus
+    provider: str
+    model: str
+    usage: Optional[UsageMetrics] = None
+
+
+class HymnJobResponse(BaseModel):
+    job_id: str
+    status: HymnJobStatus
+    provider: str
+    audio_url: Optional[str] = None
+    error: Optional[str] = None

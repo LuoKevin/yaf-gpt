@@ -11,6 +11,14 @@ pip install -r backend/requirements.txt
 uvicorn backend.app.main:app --reload
 ```
 
+## Frontend (React + Vite)
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
 ## Streamlit UI
 
 ```bash
@@ -22,6 +30,30 @@ streamlit run backend/streamlit_app.py
 ```bash
 docker compose up --build
 ```
+
+## New API Endpoints
+
+- `GET /api/bible/passage`
+- `POST /api/study-plan`
+- `POST /api/passage-image`
+- `POST /api/persona-chat`
+- `POST /api/hymn/generate`
+- `GET /api/hymn/jobs/{job_id}`
+
+## Feature Environment Toggles
+
+- `PERSONA_MODEL` (default: `gpt-4o-mini`)
+- `IMAGE_PROVIDER` (default: `openai`)
+- `IMAGE_MODEL` (default: `gpt-image-1`)
+- `MUSIC_PROVIDER` (default: `mock`, scaffolded `suno`)
+- `HYMN_LYRICS_MODEL` (default: `gpt-4o-mini`)
+- `SUNO_API_KEY` and `SUNO_BASE_URL` (for future real music adapter)
+
+## Workflow Game (Implementation Process)
+
+- Spec: `docs/workflow_game.md`
+- Scorecard template: `docs/workflow_scorecard_template.md`
+- Quest checks: `bash scripts/workflow_game_checks.sh <quest-id>`
 
 ## RAG ingest (PDFs)
 
