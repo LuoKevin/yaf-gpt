@@ -27,7 +27,7 @@ from backend.services.bible_lookup import (
     PassageVerse,
 )
 from backend.services.hymn_service import HymnJobNotFoundError, HymnValidationError
-from backend.services.persona_chat_service import PersonaChatValidationError
+from backend.services.persona_chat_service import PersonaChatProviderError, PersonaChatValidationError
 from backend.services.study_plan_service import StudyPlanValidationError
 
 
@@ -91,6 +91,13 @@ class _PersonaChatServiceStub:
             model="gpt-4o-mini",
             usage=UsageMetrics(prompt_tokens=5, completion_tokens=7, total_tokens=12),
         )
+
+    def stream_reply(self, payload):
+        if payload.messages and payload.messages[0].content == "bad":
+            raise PersonaChatValidationError("invalid")
+        if payload.messages and payload.messages[0].content == "provider":
+            raise PersonaChatProviderError("provider down")
+        return "gpt-4o-mini", iter(["Sample ", "persona response"])
 
 
 class _HymnServiceStub:
@@ -229,6 +236,45 @@ class APIRouteTests(unittest.TestCase):
             },
         )
         self.assertEqual(response.status_code, 400)
+
+    def test_persona_chat_stream_success(self) -> None:
+        response = self.client.post(
+            "/api/persona-chat/stream",
+            json={
+                "messages": [{"role": "user", "content": "How should we apply this passage?"}],
+                "reference_context": "Luke 21:5-28",
+                "translation": "WEB",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers.get("content-type"), "text/event-stream; charset=utf-8")
+        body = response.text
+        self.assertIn("event: meta", body)
+        self.assertIn('"model": "gpt-4o-mini"', body)
+        self.assertIn("event: chunk", body)
+        self.assertIn('"delta": "Sample "', body)
+        self.assertIn('"delta": "persona response"', body)
+        self.assertIn("event: done", body)
+
+    def test_persona_chat_stream_invalid_payload_maps_to_400(self) -> None:
+        response = self.client.post(
+            "/api/persona-chat/stream",
+            json={
+                "messages": [{"role": "user", "content": "bad"}],
+                "translation": "WEB",
+            },
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_persona_chat_stream_provider_error_maps_to_502(self) -> None:
+        response = self.client.post(
+            "/api/persona-chat/stream",
+            json={
+                "messages": [{"role": "user", "content": "provider"}],
+                "translation": "WEB",
+            },
+        )
+        self.assertEqual(response.status_code, 502)
 
     def test_hymn_generate_success(self) -> None:
         response = self.client.post(

@@ -142,6 +142,111 @@ async function requestJson<T>(path: string, init?: RequestInit, params?: Record<
   return payload as T;
 }
 
+type SseEventPayload = {
+  event: string;
+  data: unknown;
+};
+
+function parseSseEvent(rawEvent: string): SseEventPayload | null {
+  const lines = rawEvent.split(/\r?\n/);
+  let event = "message";
+  const dataLines: string[] = [];
+
+  for (const line of lines) {
+    if (!line || line.startsWith(":")) {
+      continue;
+    }
+    if (line.startsWith("event:")) {
+      event = line.slice(6).trim();
+      continue;
+    }
+    if (line.startsWith("data:")) {
+      dataLines.push(line.slice(5).trimStart());
+    }
+  }
+
+  if (dataLines.length === 0) {
+    return null;
+  }
+
+  const rawData = dataLines.join("\n");
+  try {
+    return { event, data: JSON.parse(rawData) as unknown };
+  } catch {
+    return { event, data: rawData };
+  }
+}
+
+async function requestSse(
+  path: string,
+  init: RequestInit,
+  onEvent: (event: SseEventPayload) => void
+) {
+  const response = await fetch(buildApiUrl(path), {
+    ...init,
+    headers: {
+      Accept: "text/event-stream",
+      ...(init.headers ?? {})
+    }
+  });
+
+  if (!response.ok) {
+    const raw = await response.text();
+    let payload: unknown = null;
+    try {
+      payload = raw ? (JSON.parse(raw) as unknown) : null;
+    } catch {
+      payload = null;
+    }
+    const detail =
+      typeof payload === "object" &&
+      payload !== null &&
+      "detail" in payload &&
+      typeof payload.detail === "string"
+        ? payload.detail
+        : `Request failed with status ${response.status}.`;
+    throw new Error(detail);
+  }
+
+  if (!response.body) {
+    throw new Error("Streaming response body is unavailable.");
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) {
+      break;
+    }
+
+    buffer += decoder.decode(value, { stream: true });
+    let separatorIndex = buffer.indexOf("\n\n");
+    while (separatorIndex !== -1) {
+      const rawEvent = buffer.slice(0, separatorIndex).trim();
+      buffer = buffer.slice(separatorIndex + 2);
+      if (rawEvent) {
+        const parsed = parseSseEvent(rawEvent);
+        if (parsed) {
+          onEvent(parsed);
+        }
+      }
+      separatorIndex = buffer.indexOf("\n\n");
+    }
+  }
+
+  buffer += decoder.decode();
+  const trailing = buffer.trim();
+  if (trailing) {
+    const parsed = parseSseEvent(trailing);
+    if (parsed) {
+      onEvent(parsed);
+    }
+  }
+}
+
 export default function App() {
   const [activeView, setActiveView] = useState<ViewMode>("study");
 
@@ -348,13 +453,15 @@ export default function App() {
     }
 
     const nextMessages = [...personaMessages, { role: "user", content: userMessage } as PersonaChatMessage];
-    setPersonaMessages(nextMessages);
+    setPersonaMessages([...nextMessages, { role: "assistant", content: "" }]);
     setPersonaInput("");
     setPersonaError("");
     setIsSendingPersona(true);
 
     try {
-      const response = await requestJson<PersonaChatResponse>("/api/persona-chat", {
+      let streamedModel: string | null = null;
+      let receivedChunk = false;
+      await requestSse("/api/persona-chat/stream", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
@@ -364,11 +471,84 @@ export default function App() {
           reference_context: reference.trim() || undefined,
           translation
         })
+      }, ({ event, data }) => {
+        if (event === "meta") {
+          if (
+            typeof data === "object" &&
+            data !== null &&
+            "model" in data &&
+            typeof data.model === "string"
+          ) {
+            streamedModel = data.model;
+          }
+          return;
+        }
+
+        if (event === "chunk") {
+          const delta =
+            typeof data === "object" &&
+            data !== null &&
+            "delta" in data &&
+            typeof data.delta === "string"
+              ? data.delta
+              : null;
+          if (delta && delta.length > 0) {
+            receivedChunk = true;
+            setPersonaMessages((current) => {
+              if (current.length === 0) {
+                return [{ role: "assistant", content: delta }];
+              }
+              const next = [...current];
+              const last = next[next.length - 1];
+              if (last.role !== "assistant") {
+                next.push({ role: "assistant", content: delta });
+                return next;
+              }
+              next[next.length - 1] = { role: "assistant", content: `${last.content}${delta}` };
+              return next;
+            });
+          }
+          return;
+        }
+
+        if (event === "error") {
+          const detail =
+            typeof data === "object" &&
+            data !== null &&
+            "detail" in data &&
+            typeof data.detail === "string"
+              ? data.detail
+              : "Unable to stream response.";
+          throw new Error(detail);
+        }
       });
 
-      setPersonaMessages((current) => [...current, { role: "assistant", content: response.reply }]);
-      setPersonaModel(response.model);
+      if (streamedModel) {
+        setPersonaModel(streamedModel);
+      }
+      if (!receivedChunk) {
+        setPersonaMessages((current) => {
+          if (current.length === 0) {
+            return current;
+          }
+          const last = current[current.length - 1];
+          if (last.role === "assistant" && !last.content.trim()) {
+            return current.slice(0, -1);
+          }
+          return current;
+        });
+      }
     } catch (error) {
+      setPersonaMessages((current) => {
+        if (current.length === 0) {
+          return current;
+        }
+        const last = current[current.length - 1];
+        if (last.role === "assistant" && !last.content.trim()) {
+          return current.slice(0, -1);
+        }
+        return current;
+      });
       setPersonaError(error instanceof Error ? error.message : "Unable to send message.");
     } finally {
       setIsSendingPersona(false);

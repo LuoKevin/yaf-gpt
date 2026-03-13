@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+from collections.abc import Iterable, Iterator
 import os
 
 from backend.app.schemas import PersonaChatRequest, PersonaChatResponse, UsageMetrics
 from backend.llm import (
     CALVINIST_BIBLE_STUDY,
+    ChatChunk,
     ChatMessage,
     ChatProvider,
     OpenAIChatProvider,
@@ -35,6 +37,7 @@ def _build_persona_system_prompt() -> str:
         f"{YOUNG_ADULT_COMMUNICATION} "
         "You are a mentor-style discussion partner for young adults. "
         "Balance biblical faithfulness with practical clarity. "
+        "When using lists, format each item on its own new line for readability. "
         "Stay concise, ask one helpful follow-up question when useful, and avoid sounding preachy. "
         "If users ask for personal counseling or crisis help, encourage speaking with a pastor or trusted local leader."
     )
@@ -64,7 +67,7 @@ class PersonaChatService:
         self._chat_provider = chat_provider or OpenAIChatProvider()
         self._model = model or os.getenv("PERSONA_MODEL") or DEFAULT_PERSONA_MODEL
 
-    def create_reply(self, payload: PersonaChatRequest) -> PersonaChatResponse:
+    def _build_messages(self, payload: PersonaChatRequest) -> list[ChatMessage]:
         messages: list[ChatMessage] = [
             ChatMessage(role="system", content=_build_persona_system_prompt())
         ]
@@ -81,14 +84,21 @@ class PersonaChatService:
                 )
             )
 
+        has_conversation_message = False
         for message in payload.messages:
             content = message.content.strip()
             if not content:
                 continue
+            has_conversation_message = True
             messages.append(ChatMessage(role=message.role, content=content))
 
-        if len(messages) <= 1:
+        if not has_conversation_message:
             raise PersonaChatValidationError("Persona chat requires at least one non-empty conversation message.")
+
+        return messages
+
+    def create_reply(self, payload: PersonaChatRequest) -> PersonaChatResponse:
+        messages = self._build_messages(payload)
 
         try:
             response = self._chat_provider.generate(
@@ -113,3 +123,40 @@ class PersonaChatService:
                 total_tokens=response.total_tokens,
             ),
         )
+
+    def stream_reply(self, payload: PersonaChatRequest) -> tuple[str, Iterable[str]]:
+        messages = self._build_messages(payload)
+
+        try:
+            stream_iter = iter(
+                self._chat_provider.stream(
+                    messages,
+                    model=self._model,
+                    temperature=0.5,
+                    max_tokens=700,
+                )
+            )
+        except ProviderError as exc:
+            raise PersonaChatProviderError(str(exc)) from exc
+
+        first_delta: str | None = None
+        try:
+            while first_delta is None:
+                chunk = next(stream_iter)
+                if chunk.content_delta:
+                    first_delta = chunk.content_delta
+        except StopIteration as exc:
+            raise PersonaChatValidationError("Persona response was empty.") from exc
+        except ProviderError as exc:
+            raise PersonaChatProviderError(str(exc)) from exc
+
+        def _yield_deltas(first_chunk: str, remaining: Iterator[ChatChunk]) -> Iterator[str]:
+            yield first_chunk
+            try:
+                for chunk in remaining:
+                    if chunk.content_delta:
+                        yield chunk.content_delta
+            except ProviderError as exc:
+                raise PersonaChatProviderError(str(exc)) from exc
+
+        return self._model, _yield_deltas(first_delta, stream_iter)
