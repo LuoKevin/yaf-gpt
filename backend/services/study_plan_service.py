@@ -25,6 +25,7 @@ from .study_docx_structure import LukeStructureContext, LukeStructureRetriever
 from .style_guide import load_luke_style_guide
 
 DEFAULT_STUDY_PLAN_MODEL = "gpt-4o-mini"
+MAX_QUESTION_NOTE_WORDS = 22
 logger = logging.getLogger(__name__)
 
 
@@ -69,6 +70,39 @@ def _extract_json_object(raw_text: str) -> dict:
         raise
 
 
+def _normalize_note_list(values: list[str]) -> list[str]:
+    return [" ".join(value.strip().split()) for value in values if value and value.strip()]
+
+
+def _validate_optional_question_notes(
+    parsed: StudyPlanLLMOutput,
+    *,
+    include_question_notes: bool,
+) -> tuple[list[str] | None, list[str] | None]:
+    if not include_question_notes:
+        return None, None
+
+    discussion_notes = parsed.discussion_question_notes
+    reflection_notes = parsed.reflection_question_notes
+    if discussion_notes is None or reflection_notes is None:
+        raise ValueError("Question notes were requested but required note arrays are missing.")
+
+    normalized_discussion = _normalize_note_list(discussion_notes)
+    normalized_reflection = _normalize_note_list(reflection_notes)
+    if len(normalized_discussion) != len(parsed.discussion_questions):
+        raise ValueError("discussion_question_notes length must match discussion_questions.")
+    if len(normalized_reflection) != len(parsed.reflection_questions):
+        raise ValueError("reflection_question_notes length must match reflection_questions.")
+
+    for note in normalized_discussion + normalized_reflection:
+        if len(note.split()) > MAX_QUESTION_NOTE_WORDS:
+            raise ValueError(
+                f"Question note is too long; max allowed is {MAX_QUESTION_NOTE_WORDS} words."
+            )
+
+    return normalized_discussion, normalized_reflection
+
+
 class StudyPlanService:
     def __init__(
         self,
@@ -96,9 +130,19 @@ class StudyPlanService:
             structure_context=structure_context,
             goals=payload.goals,
             user_notes=payload.user_notes,
+            include_question_notes=payload.include_question_notes,
         )
 
-        llm_output, usage, model_name = self._generate_with_retry(base_messages)
+        (
+            llm_output,
+            discussion_question_notes,
+            reflection_question_notes,
+            usage,
+            model_name,
+        ) = self._generate_with_retry(
+            base_messages,
+            include_question_notes=payload.include_question_notes,
+        )
         return StudyPlanResponse(
             reference=payload.reference.strip(),
             normalized_reference=passage.normalized_reference,
@@ -108,6 +152,9 @@ class StudyPlanService:
             context_points=llm_output.context_points,
             discussion_questions=llm_output.discussion_questions,
             reflection_questions=llm_output.reflection_questions,
+            include_question_notes=payload.include_question_notes,
+            discussion_question_notes=discussion_question_notes,
+            reflection_question_notes=reflection_question_notes,
             model=model_name,
             usage=usage,
         )
@@ -162,8 +209,11 @@ class StudyPlanService:
         return structure_context
 
     def _generate_with_retry(
-        self, base_messages: list[ChatMessage]
-    ) -> tuple[StudyPlanLLMOutput, Optional[UsageMetrics], str]:
+        self,
+        base_messages: list[ChatMessage],
+        *,
+        include_question_notes: bool,
+    ) -> tuple[StudyPlanLLMOutput, list[str] | None, list[str] | None, Optional[UsageMetrics], str]:
         messages = list(base_messages)
 
         for attempt in range(2):
@@ -180,20 +230,41 @@ class StudyPlanService:
             try:
                 raw_payload = _extract_json_object(response.content)
                 parsed = _validate_model_output(raw_payload)
+                (
+                    discussion_question_notes,
+                    reflection_question_notes,
+                ) = _validate_optional_question_notes(
+                    parsed,
+                    include_question_notes=include_question_notes,
+                )
                 usage = UsageMetrics(
                     prompt_tokens=response.prompt_tokens,
                     completion_tokens=response.completion_tokens,
                     total_tokens=response.total_tokens,
                 )
-                return parsed, usage, response.model
+                return (
+                    parsed,
+                    discussion_question_notes,
+                    reflection_question_notes,
+                    usage,
+                    response.model,
+                )
             except (json.JSONDecodeError, ValueError, TypeError) as exc:
                 if attempt == 0:
-                    messages = build_repair_messages(base_messages, response.content)
+                    messages = build_repair_messages(
+                        base_messages,
+                        response.content,
+                        include_question_notes=include_question_notes,
+                    )
                     continue
                 raise StudyPlanValidationError("Model output did not match study-plan schema.") from exc
             except Exception as exc:
                 if attempt == 0:
-                    messages = build_repair_messages(base_messages, response.content)
+                    messages = build_repair_messages(
+                        base_messages,
+                        response.content,
+                        include_question_notes=include_question_notes,
+                    )
                     continue
                 raise StudyPlanValidationError("Model output did not match study-plan schema.") from exc
 

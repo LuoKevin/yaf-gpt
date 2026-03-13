@@ -9,15 +9,30 @@ from backend.services.study_docx_structure import LukeStructureContext, LukeStru
 from backend.services.study_plan_service import StudyPlanService, StudyPlanValidationError
 
 
-def _valid_output_json() -> str:
+def _valid_output_json(*, include_question_notes: bool = False) -> str:
     questions = [f"Question {i}" for i in range(1, 7)]
     reflection = ["What is one lesson from this passage you need to apply this week?"]
-    return (
+    base = (
         "{"
         '"passage_title":"Jesus Foretells Turmoil and Hope",'
         '"context_points":["Temple context","Audience context"],'
         f'"discussion_questions":{questions!r},'
         f'"reflection_questions":{reflection!r}'
+        "}"
+    ).replace("'", '"')
+    if not include_question_notes:
+        return base
+
+    discussion_notes = [f"Leader note {i}" for i in range(1, 7)]
+    reflection_notes = ["Connect to one concrete life situation in your group this week."]
+    return (
+        "{"
+        '"passage_title":"Jesus Foretells Turmoil and Hope",'
+        '"context_points":["Temple context","Audience context"],'
+        f'"discussion_questions":{questions!r},'
+        f'"reflection_questions":{reflection!r},'
+        f'"discussion_question_notes":{discussion_notes!r},'
+        f'"reflection_question_notes":{reflection_notes!r}'
         "}"
     ).replace("'", '"')
 
@@ -157,6 +172,42 @@ class StudyPlanServiceTests(unittest.TestCase):
         self.assertTrue(any("Failed to retrieve Luke structure exemplars" in line for line in logs.output))
         user_prompt = chat_provider.last_messages[1].content
         self.assertNotIn("Retrieved exemplar references:", user_prompt)
+
+    def test_includes_question_notes_when_requested(self) -> None:
+        chat_provider = _FakeChatProvider([_valid_output_json(include_question_notes=True)])
+        service = StudyPlanService(
+            bible_provider=_FakeBibleProvider(),
+            chat_provider=chat_provider,
+            model="gpt-4o-mini",
+        )
+        payload = StudyPlanRequest(
+            reference="Luke 21:5-28",
+            translation="WEB",
+            include_question_notes=True,
+        )
+
+        response = service.generate_study_plan(payload)
+
+        self.assertTrue(response.include_question_notes)
+        self.assertIsNotNone(response.discussion_question_notes)
+        self.assertIsNotNone(response.reflection_question_notes)
+        self.assertEqual(len(response.discussion_question_notes or []), 6)
+        self.assertEqual(len(response.reflection_question_notes or []), len(response.reflection_questions))
+
+    def test_fails_when_question_notes_requested_but_missing(self) -> None:
+        service = StudyPlanService(
+            bible_provider=_FakeBibleProvider(),
+            chat_provider=_FakeChatProvider([_valid_output_json(), _valid_output_json()]),
+            model="gpt-4o-mini",
+        )
+        payload = StudyPlanRequest(
+            reference="Luke 21:5-28",
+            translation="WEB",
+            include_question_notes=True,
+        )
+
+        with self.assertRaises(StudyPlanValidationError):
+            service.generate_study_plan(payload)
 
 
 if __name__ == "__main__":

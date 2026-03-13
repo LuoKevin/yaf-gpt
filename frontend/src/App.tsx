@@ -39,6 +39,9 @@ type StudyPlanResponse = {
   context_points: string[];
   discussion_questions: string[];
   reflection_questions: string[];
+  include_question_notes: boolean;
+  discussion_question_notes: string[] | null;
+  reflection_question_notes: string[] | null;
   model: string;
   usage: UsageMetrics | null;
 };
@@ -146,6 +149,7 @@ export default function App() {
   const [translation, setTranslation] = useState<TranslationCode>("WEB");
   const [goals, setGoals] = useState("");
   const [userNotes, setUserNotes] = useState("");
+  const [includeQuestionNotes, setIncludeQuestionNotes] = useState(false);
 
   const [healthStatus, setHealthStatus] = useState<HealthStatus>("checking");
 
@@ -282,6 +286,7 @@ export default function App() {
           translation,
           goals: goals.trim() || undefined,
           user_notes: userNotes.trim() || undefined,
+          include_question_notes: includeQuestionNotes,
           passage_text: canReusePassage ? passage.text : undefined
         })
       });
@@ -536,6 +541,15 @@ export default function App() {
                 />
               </label>
 
+              <label className="field field-inline">
+                <span>Include question notes</span>
+                <input
+                  type="checkbox"
+                  checked={includeQuestionNotes}
+                  onChange={(event) => setIncludeQuestionNotes(event.target.checked)}
+                />
+              </label>
+
               <div className="action-row action-row-single">
                 <button
                   type="button"
@@ -671,8 +685,13 @@ export default function App() {
                     <section>
                       <h3>Questions</h3>
                       <ol className="content-list ordered-list">
-                        {studyPlan.discussion_questions.map((question) => (
-                          <li key={question}>{question}</li>
+                        {studyPlan.discussion_questions.map((question, idx) => (
+                          <li key={question}>
+                            {question}
+                            {studyPlan.discussion_question_notes?.[idx] ? (
+                              <p className="question-note">{studyPlan.discussion_question_notes[idx]}</p>
+                            ) : null}
+                          </li>
                         ))}
                       </ol>
                     </section>
@@ -680,8 +699,13 @@ export default function App() {
                     <section>
                       <h3>Reflection</h3>
                       <ul className="content-list">
-                        {studyPlan.reflection_questions.map((question) => (
-                          <li key={question}>{question}</li>
+                        {studyPlan.reflection_questions.map((question, idx) => (
+                          <li key={question}>
+                            {question}
+                            {studyPlan.reflection_question_notes?.[idx] ? (
+                              <p className="question-note">{studyPlan.reflection_question_notes[idx]}</p>
+                            ) : null}
+                          </li>
                         ))}
                       </ul>
                     </section>

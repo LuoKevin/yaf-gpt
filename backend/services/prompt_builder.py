@@ -33,10 +33,21 @@ def build_study_plan_messages(
     structure_context: LukeStructureContext | None = None,
     goals: str | None,
     user_notes: str | None,
+    include_question_notes: bool,
 ) -> list[ChatMessage]:
     goals_text = goals.strip() if goals else "Not provided."
     notes_text = user_notes.strip() if user_notes else "Not provided."
     structure_block = f"{structure_context.to_instruction_block()}\n" if structure_context else ""
+    note_instruction = (
+        (
+            f"- Include discussion_question_notes with exactly {DEFAULT_QUESTION_COUNT} short notes "
+            "that align to discussion_questions by index.\n"
+            "- Include reflection_question_notes with the same count/order as reflection_questions.\n"
+            "- Each note must be a short leader-facing facilitation hint (max 22 words).\n"
+        )
+        if include_question_notes
+        else "- Omit discussion_question_notes and reflection_question_notes from the JSON.\n"
+    )
 
     system_prompt = (
         f"{CALVINIST_BIBLE_STUDY} "
@@ -68,6 +79,7 @@ def build_study_plan_messages(
         "- Avoid generic reflection prompts that could fit any passage.\n"
         "- Each question should be open-ended, text-anchored, and promote active group discussion.\n"
         "- Keep context points historically and textually grounded.\n"
+        f"{note_instruction}"
         "- Return valid JSON only. No markdown fences, no extra keys, no prose outside JSON.\n\n"
         f"JSON Schema:\n{_schema_json()}\n"
     )
@@ -78,7 +90,21 @@ def build_study_plan_messages(
     ]
 
 
-def build_repair_messages(messages: list[ChatMessage], invalid_output: str) -> list[ChatMessage]:
+def build_repair_messages(
+    messages: list[ChatMessage],
+    invalid_output: str,
+    *,
+    include_question_notes: bool,
+) -> list[ChatMessage]:
+    repair_note_instruction = (
+        (
+            f"Include discussion_question_notes with exactly {DEFAULT_QUESTION_COUNT} entries aligned to discussion_questions by index. "
+            "Include reflection_question_notes aligned to reflection_questions by index. "
+            "Keep each note short (max 22 words) and leader-facing. "
+        )
+        if include_question_notes
+        else "Omit discussion_question_notes and reflection_question_notes. "
+    )
     repair_instruction = (
         "Reformat your previous answer into valid JSON that strictly matches the required schema. "
         f"Include exactly {DEFAULT_QUESTION_COUNT} discussion questions. "
@@ -87,6 +113,7 @@ def build_repair_messages(messages: list[ChatMessage], invalid_output: str) -> l
         "Use plain question strings only; no intent or follow-up fields. "
         "Keep discussion_questions passage-focused and reflection_questions application-focused. "
         "Each reflection question must explicitly reference the passage text (specific verse or phrase), not generic themes. "
+        f"{repair_note_instruction}"
         "Return JSON only with no markdown fences."
     )
     return messages + [

@@ -47,13 +47,17 @@ with st.sidebar:
         height=100,
         placeholder="Context about your group (maturity level, time constraints, etc.)",
     )
+    include_question_notes = st.toggle("Include short question notes", value=False)
     submitted = st.button("Generate Study Plan", type="primary", use_container_width=True)
 
 
-def render_questions(questions: list[str]) -> None:
+def render_questions(questions: list[str], notes: list[str] | None = None) -> None:
     for idx, question in enumerate(questions, start=1):
         with st.container(border=True):
             st.markdown(f"**Q{idx}. {question}**")
+            note = notes[idx - 1] if notes and (idx - 1) < len(notes) else None
+            if note:
+                st.caption(f"Leader note: {note}")
 
 
 if submitted:
@@ -63,6 +67,7 @@ if submitted:
         passage_text=passage_text.strip() or None,
         goals=goals.strip() or None,
         user_notes=user_notes.strip() or None,
+        include_question_notes=include_question_notes,
     )
 
     with st.spinner("Generating study plan..."):
@@ -95,10 +100,10 @@ if result is not None:
         st.markdown(f"- {point}")
 
     st.markdown("### Questions")
-    render_questions(result.discussion_questions)
+    render_questions(result.discussion_questions, result.discussion_question_notes)
 
     st.markdown("### Reflection Questions")
-    render_questions(result.reflection_questions)
+    render_questions(result.reflection_questions, result.reflection_question_notes)
 
     if result.usage is not None:
         st.caption(

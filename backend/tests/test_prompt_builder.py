@@ -22,6 +22,7 @@ class PromptBuilderTests(unittest.TestCase):
             structure_context=None,
             goals=None,
             user_notes=None,
+            include_question_notes=False,
         )
 
         self.assertEqual(len(messages), 2)
@@ -42,6 +43,7 @@ class PromptBuilderTests(unittest.TestCase):
         self.assertIn("reflection_questions must be at the end", user_msg)
         self.assertIn("must directly anchor to this passage", user_msg)
         self.assertIn("Avoid generic reflection prompts", user_msg)
+        self.assertIn("Omit discussion_question_notes and reflection_question_notes", user_msg)
 
     def test_includes_structure_rag_block_when_available(self) -> None:
         style = LukeStyleGuide(
@@ -78,6 +80,7 @@ class PromptBuilderTests(unittest.TestCase):
             structure_context=structure_context,
             goals=None,
             user_notes=None,
+            include_question_notes=False,
         )
 
         user_msg = messages[1].content
@@ -86,6 +89,28 @@ class PromptBuilderTests(unittest.TestCase):
         self.assertIn("Temple was central to Jewish life.", user_msg)
         self.assertIn("What does Jesus say will happen to the temple?", user_msg)
         self.assertIn("Use these as format/style examples only", user_msg)
+
+    def test_includes_question_notes_instruction_when_enabled(self) -> None:
+        style = LukeStyleGuide(
+            section_frequency={"Passage": 40, "Context": 39, "Questions": 39},
+            canonical_sections=["Passage", "Context", "Questions"],
+        )
+        messages = build_study_plan_messages(
+            reference="Luke 21:5-28",
+            normalized_reference="Luke 21:5-28",
+            translation="WEB",
+            passage_text="Sample passage text.",
+            style_guide=style,
+            structure_context=None,
+            goals=None,
+            user_notes=None,
+            include_question_notes=True,
+        )
+
+        user_msg = messages[1].content
+        self.assertIn("Include discussion_question_notes", user_msg)
+        self.assertIn("Include reflection_question_notes", user_msg)
+        self.assertIn("leader-facing facilitation hint", user_msg)
 
 
 if __name__ == "__main__":

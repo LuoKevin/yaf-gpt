@@ -54,6 +54,13 @@ class StudyPlanRequest(BaseModel):
         default=None,
         description="Optional context about the learner or study constraints.",
     )
+    include_question_notes: bool = Field(
+        default=False,
+        description=(
+            "If true, include short leader-note hints associated with each discussion/reflection "
+            "question."
+        ),
+    )
 
 
 class StudyPlanSection(BaseModel):
@@ -67,6 +74,14 @@ class StudyPlanLLMOutput(BaseModel):
     context_points: list[str] = Field(..., min_length=1)
     discussion_questions: list[str] = Field(..., min_length=6, max_length=6)
     reflection_questions: list[str] = Field(..., min_length=1, max_length=3)
+    discussion_question_notes: Optional[list[str]] = Field(
+        default=None,
+        description="Optional short leader notes matching discussion_questions by index.",
+    )
+    reflection_question_notes: Optional[list[str]] = Field(
+        default=None,
+        description="Optional short leader notes matching reflection_questions by index.",
+    )
 
 
 class PassageImageRequest(BaseModel):
@@ -120,6 +135,9 @@ class StudyPlanResponse(BaseModel):
     context_points: list[str] = Field(..., min_length=1)
     discussion_questions: list[str] = Field(..., min_length=6, max_length=6)
     reflection_questions: list[str] = Field(..., min_length=1, max_length=3)
+    include_question_notes: bool = False
+    discussion_question_notes: Optional[list[str]] = None
+    reflection_question_notes: Optional[list[str]] = None
     model: str
     usage: Optional[UsageMetrics] = None
 
