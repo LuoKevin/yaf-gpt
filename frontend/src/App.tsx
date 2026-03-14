@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
 
@@ -64,6 +64,11 @@ type PersonaChatResponse = {
   reply: string;
   model: string;
   usage: UsageMetrics | null;
+};
+
+type VoiceTranscriptionResponse = {
+  transcript: string;
+  model: string;
 };
 
 type HymnSection = {
@@ -247,6 +252,21 @@ async function requestSse(
   }
 }
 
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Unable to read recorded audio."));
+    reader.onloadend = () => {
+      if (typeof reader.result === "string") {
+        resolve(reader.result);
+        return;
+      }
+      reject(new Error("Unable to encode recorded audio."));
+    };
+    reader.readAsDataURL(blob);
+  });
+}
+
 export default function App() {
   const [activeView, setActiveView] = useState<ViewMode>("study");
 
@@ -274,6 +294,13 @@ export default function App() {
   const [personaModel, setPersonaModel] = useState<string | null>(null);
   const [personaError, setPersonaError] = useState("");
   const [isSendingPersona, setIsSendingPersona] = useState(false);
+  const [isRecordingPersona, setIsRecordingPersona] = useState(false);
+  const [isTranscribingPersona, setIsTranscribingPersona] = useState(false);
+  const [enableVoiceReply, setEnableVoiceReply] = useState(true);
+
+  const personaRecorderRef = useRef<MediaRecorder | null>(null);
+  const personaStreamRef = useRef<MediaStream | null>(null);
+  const personaChunksRef = useRef<Blob[]>([]);
 
   const [hymnStyle, setHymnStyle] = useState("modern worship hymn, acoustic");
   const [hymnMood, setHymnMood] = useState("hopeful");
@@ -340,6 +367,27 @@ export default function App() {
       window.clearInterval(timer);
     };
   }, [hymnJobId, hymnJobStatus]);
+
+  function releasePersonaMediaResources() {
+    if (personaStreamRef.current) {
+      personaStreamRef.current.getTracks().forEach((track) => track.stop());
+    }
+    personaStreamRef.current = null;
+    personaRecorderRef.current = null;
+    personaChunksRef.current = [];
+  }
+
+  useEffect(() => {
+    return () => {
+      if (personaRecorderRef.current && personaRecorderRef.current.state !== "inactive") {
+        personaRecorderRef.current.stop();
+      }
+      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+      }
+      releasePersonaMediaResources();
+    };
+  }, []);
 
   async function handlePassageLookup() {
     const trimmedReference = reference.trim();
@@ -445,8 +493,23 @@ export default function App() {
     }
   }
 
-  async function handlePersonaSend() {
-    const userMessage = personaInput.trim();
+  function speakPersonaReply(replyText: string) {
+    const cleaned = replyText.trim();
+    if (!cleaned || !enableVoiceReply) {
+      return;
+    }
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) {
+      return;
+    }
+
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(cleaned);
+    utterance.rate = 1;
+    window.speechSynthesis.speak(utterance);
+  }
+
+  async function sendPersonaMessage(rawMessage: string) {
+    const userMessage = rawMessage.trim();
     if (!userMessage) {
       setPersonaError("Type a message.");
       return;
@@ -454,74 +517,79 @@ export default function App() {
 
     const nextMessages = [...personaMessages, { role: "user", content: userMessage } as PersonaChatMessage];
     setPersonaMessages([...nextMessages, { role: "assistant", content: "" }]);
-    setPersonaInput("");
     setPersonaError("");
     setIsSendingPersona(true);
 
     try {
       let streamedModel: string | null = null;
       let receivedChunk = false;
-      await requestSse("/api/persona-chat/stream", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
+      let assistantReply = "";
+      await requestSse(
+        "/api/persona-chat/stream",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            messages: nextMessages,
+            reference_context: reference.trim() || undefined,
+            translation
+          })
         },
-        body: JSON.stringify({
-          messages: nextMessages,
-          reference_context: reference.trim() || undefined,
-          translation
-        })
-      }, ({ event, data }) => {
-        if (event === "meta") {
-          if (
-            typeof data === "object" &&
-            data !== null &&
-            "model" in data &&
-            typeof data.model === "string"
-          ) {
-            streamedModel = data.model;
+        ({ event, data }) => {
+          if (event === "meta") {
+            if (
+              typeof data === "object" &&
+              data !== null &&
+              "model" in data &&
+              typeof data.model === "string"
+            ) {
+              streamedModel = data.model;
+            }
+            return;
           }
-          return;
-        }
 
-        if (event === "chunk") {
-          const delta =
-            typeof data === "object" &&
-            data !== null &&
-            "delta" in data &&
-            typeof data.delta === "string"
-              ? data.delta
-              : null;
-          if (delta && delta.length > 0) {
-            receivedChunk = true;
-            setPersonaMessages((current) => {
-              if (current.length === 0) {
-                return [{ role: "assistant", content: delta }];
-              }
-              const next = [...current];
-              const last = next[next.length - 1];
-              if (last.role !== "assistant") {
-                next.push({ role: "assistant", content: delta });
+          if (event === "chunk") {
+            const delta =
+              typeof data === "object" &&
+              data !== null &&
+              "delta" in data &&
+              typeof data.delta === "string"
+                ? data.delta
+                : null;
+            if (delta && delta.length > 0) {
+              assistantReply += delta;
+              receivedChunk = true;
+              setPersonaMessages((current) => {
+                if (current.length === 0) {
+                  return [{ role: "assistant", content: delta }];
+                }
+                const next = [...current];
+                const last = next[next.length - 1];
+                if (last.role !== "assistant") {
+                  next.push({ role: "assistant", content: delta });
+                  return next;
+                }
+                next[next.length - 1] = { role: "assistant", content: `${last.content}${delta}` };
                 return next;
-              }
-              next[next.length - 1] = { role: "assistant", content: `${last.content}${delta}` };
-              return next;
-            });
+              });
+            }
+            return;
           }
-          return;
-        }
 
-        if (event === "error") {
-          const detail =
-            typeof data === "object" &&
-            data !== null &&
-            "detail" in data &&
-            typeof data.detail === "string"
-              ? data.detail
-              : "Unable to stream response.";
-          throw new Error(detail);
+          if (event === "error") {
+            const detail =
+              typeof data === "object" &&
+              data !== null &&
+              "detail" in data &&
+              typeof data.detail === "string"
+                ? data.detail
+                : "Unable to stream response.";
+            throw new Error(detail);
+          }
         }
-      });
+      );
 
       if (streamedModel) {
         setPersonaModel(streamedModel);
@@ -537,6 +605,8 @@ export default function App() {
           }
           return current;
         });
+      } else {
+        speakPersonaReply(assistantReply);
       }
     } catch (error) {
       setPersonaMessages((current) => {
@@ -555,10 +625,126 @@ export default function App() {
     }
   }
 
+  async function handlePersonaSend() {
+    const userMessage = personaInput.trim();
+    if (!userMessage) {
+      setPersonaError("Type a message.");
+      return;
+    }
+    setPersonaInput("");
+    await sendPersonaMessage(userMessage);
+  }
+
+  async function transcribePersonaRecording(blob: Blob) {
+    setIsTranscribingPersona(true);
+    setPersonaError("");
+
+    try {
+      const audioBase64 = await blobToDataUrl(blob);
+      const response = await requestJson<VoiceTranscriptionResponse>("/api/voice/transcribe", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          audio_base64: audioBase64,
+          mime_type: blob.type || "audio/webm",
+          file_name: "voice_input.webm"
+        })
+      });
+
+      await sendPersonaMessage(response.transcript);
+    } catch (error) {
+      setPersonaError(error instanceof Error ? error.message : "Unable to process recorded audio.");
+    } finally {
+      setIsTranscribingPersona(false);
+    }
+  }
+
+  async function startPersonaRecording() {
+    if (isRecordingPersona || isSendingPersona || isTranscribingPersona) {
+      return;
+    }
+    if (typeof window === "undefined" || typeof MediaRecorder === "undefined") {
+      setPersonaError("Voice input is not supported in this browser.");
+      return;
+    }
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setPersonaError("Microphone access is not available in this browser.");
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const preferredMimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+        ? "audio/webm;codecs=opus"
+        : "audio/webm";
+      const recorder = MediaRecorder.isTypeSupported(preferredMimeType)
+        ? new MediaRecorder(stream, { mimeType: preferredMimeType })
+        : new MediaRecorder(stream);
+
+      personaStreamRef.current = stream;
+      personaRecorderRef.current = recorder;
+      personaChunksRef.current = [];
+
+      recorder.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) {
+          personaChunksRef.current.push(event.data);
+        }
+      };
+
+      recorder.onerror = () => {
+        setPersonaError("Recording failed.");
+        setIsRecordingPersona(false);
+        releasePersonaMediaResources();
+      };
+
+      recorder.onstop = () => {
+        const chunks = [...personaChunksRef.current];
+        const blobType = recorder.mimeType || "audio/webm";
+        setIsRecordingPersona(false);
+        releasePersonaMediaResources();
+
+        if (chunks.length === 0) {
+          setPersonaError("No audio captured.");
+          return;
+        }
+
+        const recording = new Blob(chunks, { type: blobType });
+        void transcribePersonaRecording(recording);
+      };
+
+      setPersonaError("");
+      recorder.start();
+      setIsRecordingPersona(true);
+    } catch (error) {
+      setPersonaError(error instanceof Error ? error.message : "Unable to access microphone.");
+      setIsRecordingPersona(false);
+      releasePersonaMediaResources();
+    }
+  }
+
+  function stopPersonaRecording() {
+    if (!personaRecorderRef.current || personaRecorderRef.current.state === "inactive") {
+      return;
+    }
+    personaRecorderRef.current.stop();
+  }
+
   function handlePersonaReset() {
+    if (personaRecorderRef.current && personaRecorderRef.current.state !== "inactive") {
+      personaRecorderRef.current.stop();
+    }
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
+    releasePersonaMediaResources();
     setPersonaMessages([]);
     setPersonaModel(null);
     setPersonaError("");
+    setPersonaInput("");
+    setIsRecordingPersona(false);
+    setIsTranscribingPersona(false);
   }
 
   async function handleHymnGeneration() {
@@ -966,14 +1152,34 @@ export default function App() {
                     type="button"
                     className="secondary-button"
                     onClick={handlePersonaSend}
-                    disabled={isSendingPersona}
+                    disabled={isSendingPersona || isRecordingPersona || isTranscribingPersona}
                   >
                     {isSendingPersona ? "Sending..." : "Send"}
+                  </button>
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={isRecordingPersona ? stopPersonaRecording : () => void startPersonaRecording()}
+                    disabled={isSendingPersona || isTranscribingPersona}
+                  >
+                    {isRecordingPersona ? "Stop recording" : "Voice input"}
                   </button>
                   <button type="button" className="secondary-button" onClick={handlePersonaReset}>
                     Reset
                   </button>
                 </div>
+
+                <label className="field field-inline">
+                  <span>Voice reply</span>
+                  <input
+                    type="checkbox"
+                    checked={enableVoiceReply}
+                    onChange={(event) => setEnableVoiceReply(event.target.checked)}
+                  />
+                </label>
+
+                {isRecordingPersona ? <p className="muted-text">Recording...</p> : null}
+                {isTranscribingPersona ? <p className="muted-text">Transcribing audio...</p> : null}
               </div>
             </article>
           ) : null}

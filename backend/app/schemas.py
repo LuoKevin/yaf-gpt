@@ -148,6 +148,27 @@ class PersonaChatResponse(BaseModel):
     usage: Optional[UsageMetrics] = None
 
 
+class VoiceTranscriptionRequest(BaseModel):
+    audio_base64: str = Field(
+        ...,
+        min_length=1,
+        description="Base64-encoded audio bytes, optionally as a data URL.",
+    )
+    mime_type: Optional[str] = Field(
+        default=None,
+        description="Optional MIME type for the uploaded audio.",
+    )
+    file_name: Optional[str] = Field(
+        default=None,
+        description="Optional file name hint for transcription provider compatibility.",
+    )
+
+
+class VoiceTranscriptionResponse(BaseModel):
+    transcript: str
+    model: str
+
+
 class HymnSection(BaseModel):
     label: str = Field(..., min_length=1, description="Section label, for example Verse 1 or Chorus.")
     lyrics: str = Field(..., min_length=1)

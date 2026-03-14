@@ -10,6 +10,7 @@ from backend.app.routes.chat import get_persona_chat_service
 from backend.app.routes.hymn import get_hymn_service
 from backend.app.routes.image import get_passage_image_service
 from backend.app.routes.study_plan import get_study_plan_service
+from backend.app.routes.voice import get_voice_transcription_service
 from backend.app.schemas import (
     HymnGenerateResponse,
     HymnJobResponse,
@@ -29,6 +30,10 @@ from backend.services.bible_lookup import (
 from backend.services.hymn_service import HymnJobNotFoundError, HymnValidationError
 from backend.services.persona_chat_service import PersonaChatProviderError, PersonaChatValidationError
 from backend.services.study_plan_service import StudyPlanValidationError
+from backend.services.voice_transcription_service import (
+    VoiceTranscriptionProviderError,
+    VoiceTranscriptionValidationError,
+)
 
 
 class _BibleProviderStub:
@@ -139,6 +144,17 @@ class _HymnServiceStub:
         )
 
 
+class _VoiceTranscriptionServiceStub:
+    model_name = "gpt-4o-mini-transcribe"
+
+    def transcribe_base64(self, *, audio_base64: str, mime_type: str | None = None, file_name: str | None = None):
+        if audio_base64 == "bad":
+            raise VoiceTranscriptionValidationError("invalid")
+        if audio_base64 == "provider":
+            raise VoiceTranscriptionProviderError("provider down")
+        return "transcribed question"
+
+
 class APIRouteTests(unittest.TestCase):
     def setUp(self) -> None:
         app.dependency_overrides[get_bible_provider] = lambda: _BibleProviderStub()
@@ -146,6 +162,7 @@ class APIRouteTests(unittest.TestCase):
         app.dependency_overrides[get_passage_image_service] = lambda: _PassageImageServiceStub()
         app.dependency_overrides[get_persona_chat_service] = lambda: _PersonaChatServiceStub()
         app.dependency_overrides[get_hymn_service] = lambda: _HymnServiceStub()
+        app.dependency_overrides[get_voice_transcription_service] = lambda: _VoiceTranscriptionServiceStub()
         self.client = TestClient(app)
 
     def tearDown(self) -> None:
@@ -272,6 +289,38 @@ class APIRouteTests(unittest.TestCase):
             json={
                 "messages": [{"role": "user", "content": "provider"}],
                 "translation": "WEB",
+            },
+        )
+        self.assertEqual(response.status_code, 502)
+
+    def test_voice_transcription_success(self) -> None:
+        response = self.client.post(
+            "/api/voice/transcribe",
+            json={
+                "audio_base64": "ZmFrZQ==",
+                "mime_type": "audio/webm",
+                "file_name": "recording.webm",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body["transcript"], "transcribed question")
+        self.assertEqual(body["model"], "gpt-4o-mini-transcribe")
+
+    def test_voice_transcription_validation_error_maps_to_400(self) -> None:
+        response = self.client.post(
+            "/api/voice/transcribe",
+            json={
+                "audio_base64": "bad",
+            },
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_voice_transcription_provider_error_maps_to_502(self) -> None:
+        response = self.client.post(
+            "/api/voice/transcribe",
+            json={
+                "audio_base64": "provider",
             },
         )
         self.assertEqual(response.status_code, 502)
