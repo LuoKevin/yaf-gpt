@@ -18,3 +18,15 @@ services:
       - backend/.env
     volumes:
       - ./:/app
+
+  voice-worker:
+    build:
+      context: .
+      dockerfile: voice_worker/Dockerfile
+    command: uvicorn voice_worker.app.main:app --host 0.0.0.0 --port 8010 --reload
+    ports:
+      - "8010:8010"
+    environment:
+      - VOICE_WORKER_PROVIDER=mock
+    volumes:
+      - ./:/app

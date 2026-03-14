@@ -31,6 +31,21 @@ streamlit run backend/streamlit_app.py
 docker compose up --build
 ```
 
+## Voice Worker (Scaffold)
+
+```bash
+uvicorn voice_worker.app.main:app --host 0.0.0.0 --port 8010 --reload
+```
+
+or with Docker:
+
+```bash
+docker build -f voice_worker/Dockerfile -t yaf-voice-worker .
+docker run --rm -p 8010:8010 -e VOICE_WORKER_PROVIDER=mock yaf-voice-worker
+```
+
+Reference: `voice_worker/README.md`
+
 ## New API Endpoints
 
 - `GET /api/bible/passage`
@@ -39,6 +54,8 @@ docker compose up --build
 - `POST /api/persona-chat`
 - `POST /api/hymn/generate`
 - `GET /api/hymn/jobs/{job_id}`
+- `POST /api/voice/transcribe`
+- Voice worker: `POST /v1/voices/clone`, `POST /v1/tts/synthesize`
 
 ## Feature Environment Toggles
 
@@ -48,6 +65,8 @@ docker compose up --build
 - `MUSIC_PROVIDER` (default: `mock`, scaffolded `suno`)
 - `HYMN_LYRICS_MODEL` (default: `gpt-4o-mini`)
 - `SUNO_API_KEY` and `SUNO_BASE_URL` (for future real music adapter)
+- `VOICE_TRANSCRIPTION_MODEL` (default: `gpt-4o-mini-transcribe`)
+- `VOICE_WORKER_PROVIDER` (voice worker only; default: `mock`)
 
 ## Workflow Game (Implementation Process)
 
