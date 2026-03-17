@@ -9,6 +9,7 @@ from backend.app.routes.bible import get_bible_provider
 from backend.app.routes.chat import get_persona_chat_service
 from backend.app.routes.hymn import get_hymn_service
 from backend.app.routes.image import get_passage_image_service
+from backend.app.routes.music import get_music_generation_service
 from backend.app.routes.study_plan import get_study_plan_service
 from backend.app.routes.voice import get_voice_transcription_service
 from backend.app.schemas import (
@@ -16,6 +17,8 @@ from backend.app.schemas import (
     HymnJobResponse,
     HymnLyrics,
     HymnSection,
+    MusicGenerateResponse,
+    MusicJobResponse,
     PassageImageResponse,
     PersonaChatResponse,
     StudyPlanResponse,
@@ -29,6 +32,11 @@ from backend.services.bible_lookup import (
 )
 from backend.services.hymn_service import HymnJobNotFoundError, HymnValidationError
 from backend.services.persona_chat_service import PersonaChatProviderError, PersonaChatValidationError
+from backend.services.music_generation_service import (
+    MusicGenerationJobNotFoundError,
+    MusicGenerationProviderError,
+    MusicGenerationValidationError,
+)
 from backend.services.study_plan_service import StudyPlanValidationError
 from backend.services.voice_transcription_service import (
     VoiceTranscriptionProviderError,
@@ -155,6 +163,36 @@ class _VoiceTranscriptionServiceStub:
         return "transcribed question"
 
 
+class _MusicGenerationServiceStub:
+    def generate_music(self, payload):
+        if payload.prompt == "bad":
+            raise MusicGenerationValidationError("invalid")
+        if payload.prompt == "provider":
+            raise MusicGenerationProviderError("provider down")
+        return MusicGenerateResponse(
+            job_id="music-job-1",
+            status="queued",
+            provider="mock",
+            title=payload.title or "Generated Track",
+            prompt=payload.prompt,
+        )
+
+    def get_job_status(self, job_id: str):
+        if job_id == "bad":
+            raise MusicGenerationValidationError("invalid")
+        if job_id == "missing":
+            raise MusicGenerationJobNotFoundError("not found")
+        if job_id == "provider":
+            raise MusicGenerationProviderError("provider down")
+        return MusicJobResponse(
+            job_id=job_id,
+            status="completed",
+            provider="mock",
+            audio_url="https://example.com/music.wav",
+            error=None,
+        )
+
+
 class APIRouteTests(unittest.TestCase):
     def setUp(self) -> None:
         app.dependency_overrides[get_bible_provider] = lambda: _BibleProviderStub()
@@ -163,6 +201,7 @@ class APIRouteTests(unittest.TestCase):
         app.dependency_overrides[get_persona_chat_service] = lambda: _PersonaChatServiceStub()
         app.dependency_overrides[get_hymn_service] = lambda: _HymnServiceStub()
         app.dependency_overrides[get_voice_transcription_service] = lambda: _VoiceTranscriptionServiceStub()
+        app.dependency_overrides[get_music_generation_service] = lambda: _MusicGenerationServiceStub()
         self.client = TestClient(app)
 
     def tearDown(self) -> None:
@@ -323,6 +362,58 @@ class APIRouteTests(unittest.TestCase):
                 "audio_base64": "provider",
             },
         )
+        self.assertEqual(response.status_code, 502)
+
+    def test_music_generate_success(self) -> None:
+        response = self.client.post(
+            "/api/music/generate",
+            json={
+                "prompt": "hopeful worship track",
+                "style_hint": "modern worship",
+                "mood_hint": "hopeful",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body["job_id"], "music-job-1")
+        self.assertEqual(body["provider"], "mock")
+
+    def test_music_generate_validation_error_maps_to_400(self) -> None:
+        response = self.client.post(
+            "/api/music/generate",
+            json={
+                "prompt": "bad",
+                "style_hint": "modern worship",
+            },
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_music_generate_provider_error_maps_to_502(self) -> None:
+        response = self.client.post(
+            "/api/music/generate",
+            json={
+                "prompt": "provider",
+                "style_hint": "modern worship",
+            },
+        )
+        self.assertEqual(response.status_code, 502)
+
+    def test_music_job_status_success(self) -> None:
+        response = self.client.get("/api/music/jobs/music-job-1")
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body["status"], "completed")
+
+    def test_music_job_status_bad_request_maps_to_400(self) -> None:
+        response = self.client.get("/api/music/jobs/bad")
+        self.assertEqual(response.status_code, 400)
+
+    def test_music_job_status_not_found_maps_to_404(self) -> None:
+        response = self.client.get("/api/music/jobs/missing")
+        self.assertEqual(response.status_code, 404)
+
+    def test_music_job_status_provider_error_maps_to_502(self) -> None:
+        response = self.client.get("/api/music/jobs/provider")
         self.assertEqual(response.status_code, 502)
 
     def test_hymn_generate_success(self) -> None:

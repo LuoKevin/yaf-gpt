@@ -222,3 +222,40 @@ class HymnJobResponse(BaseModel):
     provider: str
     audio_url: Optional[str] = None
     error: Optional[str] = None
+
+
+class MusicGenerateRequest(BaseModel):
+    prompt: str = Field(
+        ...,
+        min_length=3,
+        description="User text prompt or lyrics seed for music generation.",
+    )
+    style_hint: str = Field(
+        default="modern worship, acoustic",
+        min_length=3,
+        description="High-level style direction sent to the music provider.",
+    )
+    mood_hint: Optional[str] = Field(
+        default=None,
+        description="Optional mood direction, for example hopeful, reflective, triumphant.",
+    )
+    title: Optional[str] = Field(
+        default=None,
+        description="Optional track title override.",
+    )
+
+
+class MusicGenerateResponse(BaseModel):
+    job_id: str
+    status: HymnJobStatus
+    provider: str
+    title: str
+    prompt: str
+
+
+class MusicJobResponse(BaseModel):
+    job_id: str
+    status: HymnJobStatus
+    provider: str
+    audio_url: Optional[str] = None
+    error: Optional[str] = None

@@ -54,6 +54,8 @@ Reference: `voice_worker/README.md`
 - `POST /api/persona-chat`
 - `POST /api/hymn/generate`
 - `GET /api/hymn/jobs/{job_id}`
+- `POST /api/music/generate`
+- `GET /api/music/jobs/{job_id}`
 - `POST /api/voice/transcribe`
 - Voice worker: `POST /v1/voices/clone`, `POST /v1/tts/synthesize`
 
