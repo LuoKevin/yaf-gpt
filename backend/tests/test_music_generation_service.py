@@ -4,12 +4,7 @@ import unittest
 
 from backend.app.schemas import MusicGenerateRequest
 from backend.media import MusicJob, MusicProviderError
-from backend.services.music_generation_service import (
-    MusicGenerationJobNotFoundError,
-    MusicGenerationProviderError,
-    MusicGenerationService,
-    MusicGenerationValidationError,
-)
+from backend.services.music_generation import MusicGenerationService
 
 
 class _FakeMusicProvider:
@@ -71,7 +66,7 @@ class MusicGenerationServiceTests(unittest.TestCase):
     def test_generate_music_rejects_blank_prompt_after_normalization(self) -> None:
         service = MusicGenerationService(music_provider=_FakeMusicProvider())
 
-        with self.assertRaises(MusicGenerationValidationError):
+        with self.assertRaises(ValueError):
             service.generate_music(
                 MusicGenerateRequest(
                     prompt="   ",
@@ -84,7 +79,7 @@ class MusicGenerationServiceTests(unittest.TestCase):
         provider.raise_create_error = True
         service = MusicGenerationService(music_provider=provider)
 
-        with self.assertRaises(MusicGenerationProviderError):
+        with self.assertRaises(RuntimeError):
             service.generate_music(
                 MusicGenerateRequest(
                     prompt="generate a song",
@@ -95,7 +90,7 @@ class MusicGenerationServiceTests(unittest.TestCase):
     def test_get_job_status_not_found(self) -> None:
         service = MusicGenerationService(music_provider=_FakeMusicProvider())
 
-        with self.assertRaises(MusicGenerationJobNotFoundError):
+        with self.assertRaises(LookupError):
             service.get_job_status("missing")
 
 

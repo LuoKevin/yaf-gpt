@@ -4,10 +4,7 @@ import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
-from .domain import (
-    DEFAULT_TRANSCRIPTION_MODEL,
-    VoiceTranscriptionProviderError,
-)
+from .domain import DEFAULT_TRANSCRIPTION_MODEL
 
 if TYPE_CHECKING:
     from openai import OpenAI
@@ -40,13 +37,13 @@ class OpenAIVoiceTranscriptionGateway:
 
         resolved_key = api_key or os.getenv("OPENAI_API_KEY")
         if not resolved_key and client is None:
-            raise VoiceTranscriptionProviderError("OPENAI_API_KEY is not set")
+            raise RuntimeError("OPENAI_API_KEY is not set")
 
         if client is None:
             try:
                 from openai import OpenAI
             except ModuleNotFoundError as exc:
-                raise VoiceTranscriptionProviderError("openai package is not installed") from exc
+                raise RuntimeError("openai package is not installed") from exc
             self._client = OpenAI(api_key=resolved_key)
         else:
             self._client = client
@@ -63,6 +60,6 @@ class OpenAIVoiceTranscriptionGateway:
                 file=(file_name, audio_bytes, mime_type),
             )
         except Exception as exc:
-            raise VoiceTranscriptionProviderError(str(exc)) from exc
+            raise RuntimeError(str(exc)) from exc
 
         return getattr(response, "text", "") or ""

@@ -10,7 +10,7 @@ from backend.app.routes.chat import get_persona_chat_service
 from backend.app.routes.image import get_passage_image_service
 from backend.app.routes.music import get_music_generation_service
 from backend.app.routes.study_plan import get_study_plan_service
-from backend.app.routes.voice import get_voice_transcription_service
+from backend.app.routes.voice import get_voice_generation_service, get_voice_transcription_service
 from backend.app.schemas import (
     MusicGenerateResponse,
     MusicJobResponse,
@@ -18,6 +18,7 @@ from backend.app.schemas import (
     PersonaChatResponse,
     StudyPlanResponse,
     UsageMetrics,
+    VoiceGenerationResponse,
 )
 from backend.services.bible_lookup import (
     InvalidReferenceError,
@@ -25,17 +26,9 @@ from backend.services.bible_lookup import (
     PassageNotFoundError,
     PassageVerse,
 )
-from backend.services.music_generation_service import (
-    MusicGenerationJobNotFoundError,
-    MusicGenerationProviderError,
-    MusicGenerationValidationError,
-)
 from backend.services.persona_chat_service import PersonaChatProviderError, PersonaChatValidationError
 from backend.services.study_plan_service import StudyPlanValidationError
-from backend.services.voice_transcription_service import (
-    VoiceTranscriptionProviderError,
-    VoiceTranscriptionValidationError,
-)
+from backend.services.voice_transcription import VoiceTranscriptionService
 
 
 class _BibleProviderStub:
@@ -112,18 +105,47 @@ class _VoiceTranscriptionServiceStub:
 
     def transcribe_base64(self, *, audio_base64: str, mime_type: str | None = None, file_name: str | None = None):
         if audio_base64 == "bad":
-            raise VoiceTranscriptionValidationError("invalid")
+            raise ValueError("invalid")
         if audio_base64 == "provider":
-            raise VoiceTranscriptionProviderError("provider down")
+            raise RuntimeError("provider down")
         return "transcribed question"
+
+
+class _VoiceGenerationServiceStub:
+    model_name = "gpt-4o-mini-tts"
+
+    def generate_audio(
+        self,
+        *,
+        input_text: str,
+        voice: str = "alloy",
+        instructions: str | None = None,
+        response_format: str = "mp3",
+        speed: float = 1.0,
+    ):
+        if input_text == "bad":
+            raise ValueError("invalid")
+        if input_text == "provider":
+            raise RuntimeError("provider down")
+        return type(
+            "VoiceGenerationResultStub",
+            (),
+            {
+                "audio_bytes": b"fake-audio",
+                "mime_type": "audio/mpeg",
+                "model": self.model_name,
+                "voice": voice,
+                "response_format": response_format,
+            },
+        )()
 
 
 class _MusicGenerationServiceStub:
     def generate_music(self, payload):
         if payload.prompt == "bad":
-            raise MusicGenerationValidationError("invalid")
+            raise ValueError("invalid")
         if payload.prompt == "provider":
-            raise MusicGenerationProviderError("provider down")
+            raise RuntimeError("provider down")
         return MusicGenerateResponse(
             job_id="music-job-1",
             status="queued",
@@ -134,11 +156,11 @@ class _MusicGenerationServiceStub:
 
     def get_job_status(self, job_id: str):
         if job_id == "bad":
-            raise MusicGenerationValidationError("invalid")
+            raise ValueError("invalid")
         if job_id == "missing":
-            raise MusicGenerationJobNotFoundError("not found")
+            raise LookupError("not found")
         if job_id == "provider":
-            raise MusicGenerationProviderError("provider down")
+            raise RuntimeError("provider down")
         return MusicJobResponse(
             job_id=job_id,
             status="completed",
@@ -155,6 +177,7 @@ class APIRouteTests(unittest.TestCase):
         app.dependency_overrides[get_passage_image_service] = lambda: _PassageImageServiceStub()
         app.dependency_overrides[get_persona_chat_service] = lambda: _PersonaChatServiceStub()
         app.dependency_overrides[get_voice_transcription_service] = lambda: _VoiceTranscriptionServiceStub()
+        app.dependency_overrides[get_voice_generation_service] = lambda: _VoiceGenerationServiceStub()
         app.dependency_overrides[get_music_generation_service] = lambda: _MusicGenerationServiceStub()
         self.client = TestClient(app)
 
@@ -314,6 +337,43 @@ class APIRouteTests(unittest.TestCase):
             "/api/voice/transcribe",
             json={
                 "audio_base64": "provider",
+            },
+        )
+        self.assertEqual(response.status_code, 502)
+
+    def test_voice_generation_success(self) -> None:
+        response = self.client.post(
+            "/api/voice/generate",
+            json={
+                "input": "Speak this response",
+                "voice": "alloy",
+                "response_format": "mp3",
+                "speed": 1.0,
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body["model"], "gpt-4o-mini-tts")
+        self.assertEqual(body["voice"], "alloy")
+        self.assertEqual(body["response_format"], "mp3")
+        self.assertEqual(body["mime_type"], "audio/mpeg")
+
+    def test_voice_generation_validation_error_maps_to_400(self) -> None:
+        response = self.client.post(
+            "/api/voice/generate",
+            json={
+                "input": "bad",
+                "voice": "alloy",
+            },
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_voice_generation_provider_error_maps_to_502(self) -> None:
+        response = self.client.post(
+            "/api/voice/generate",
+            json={
+                "input": "provider",
+                "voice": "alloy",
             },
         )
         self.assertEqual(response.status_code, 502)

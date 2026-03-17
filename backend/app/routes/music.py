@@ -4,12 +4,7 @@ from functools import lru_cache
 
 from fastapi import APIRouter, Depends, HTTPException, Path, status
 
-from ...services.music_generation_service import (
-    MusicGenerationJobNotFoundError,
-    MusicGenerationProviderError,
-    MusicGenerationService,
-    MusicGenerationValidationError,
-)
+from ...services.music_generation import MusicGenerationService
 from ..schemas import APIErrorResponse, MusicGenerateRequest, MusicGenerateResponse, MusicJobResponse
 
 router = APIRouter(prefix="/api/music", tags=["music"])
@@ -34,9 +29,9 @@ def generate_music(
 ) -> MusicGenerateResponse:
     try:
         return service.generate_music(payload)
-    except MusicGenerationValidationError as exc:
+    except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
-    except MusicGenerationProviderError as exc:
+    except RuntimeError as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
 
 
@@ -55,9 +50,9 @@ def get_music_job(
 ) -> MusicJobResponse:
     try:
         return service.get_job_status(job_id)
-    except MusicGenerationValidationError as exc:
+    except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
-    except MusicGenerationJobNotFoundError as exc:
+    except LookupError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
-    except MusicGenerationProviderError as exc:
+    except RuntimeError as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc

@@ -7,18 +7,6 @@ from typing import Optional
 DEFAULT_TRANSCRIPTION_MODEL = "gpt-4o-mini-transcribe"
 
 
-class VoiceTranscriptionError(RuntimeError):
-    """Base class for voice-transcription failures."""
-
-
-class VoiceTranscriptionValidationError(VoiceTranscriptionError):
-    """Raised when input audio is missing or malformed."""
-
-
-class VoiceTranscriptionProviderError(VoiceTranscriptionError):
-    """Raised when the transcription provider fails."""
-
-
 @dataclass(frozen=True)
 class TranscribeVoiceCommand:
     audio_base64: str
@@ -44,7 +32,7 @@ def strip_data_url(audio_base64: str) -> str:
     if cleaned.startswith("data:"):
         marker = cleaned.find(",")
         if marker < 0:
-            raise VoiceTranscriptionValidationError("Audio payload data URL is invalid.")
+            raise ValueError("Audio payload data URL is invalid.")
         return cleaned[marker + 1 :].strip()
     return cleaned
 
@@ -52,12 +40,12 @@ def strip_data_url(audio_base64: str) -> str:
 def decode_audio_base64(audio_base64: str) -> bytes:
     cleaned = strip_data_url(audio_base64)
     if not cleaned:
-        raise VoiceTranscriptionValidationError("Audio payload is empty.")
+        raise ValueError("Audio payload is empty.")
 
     try:
         return base64.b64decode(cleaned, validate=True)
     except Exception as exc:
-        raise VoiceTranscriptionValidationError("Audio payload must be valid base64.") from exc
+        raise ValueError("Audio payload must be valid base64.") from exc
 
 
 def fallback_filename(mime_type: Optional[str]) -> str:

@@ -2,11 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from backend.services.voice_transcription_service import (
-    VoiceTranscriptionProviderError,
-    VoiceTranscriptionService,
-    VoiceTranscriptionValidationError,
-)
+from backend.services.voice_transcription import VoiceTranscriptionService
 
 
 class _FakeTranscriptionResponse:
@@ -54,7 +50,7 @@ class VoiceTranscriptionServiceTests(unittest.TestCase):
     def test_rejects_invalid_base64(self) -> None:
         service = VoiceTranscriptionService(client=_FakeOpenAIClient(), model="test-model")
 
-        with self.assertRaises(VoiceTranscriptionValidationError):
+        with self.assertRaises(ValueError):
             service.transcribe_base64(audio_base64="not-base64")
 
     def test_maps_provider_errors(self) -> None:
@@ -63,13 +59,13 @@ class VoiceTranscriptionServiceTests(unittest.TestCase):
             model="test-model",
         )
 
-        with self.assertRaises(VoiceTranscriptionProviderError):
+        with self.assertRaises(RuntimeError):
             service.transcribe_base64(audio_base64="ZmFrZQ==")
 
     def test_rejects_empty_transcript(self) -> None:
         service = VoiceTranscriptionService(client=_FakeOpenAIClient(transcript_text="   "), model="test-model")
 
-        with self.assertRaises(VoiceTranscriptionValidationError):
+        with self.assertRaises(ValueError):
             service.transcribe_base64(audio_base64="ZmFrZQ==")
 
 

@@ -9,6 +9,20 @@ TranslationCode = Literal["WEB", "KJV"]
 ImageStyle = Literal["modern_editorial_illustration"]
 ChatRole = Literal["user", "assistant"]
 HymnJobStatus = Literal["queued", "in_progress", "completed", "failed"]
+VoiceGenerationVoice = Literal[
+    "alloy",
+    "ash",
+    "ballad",
+    "coral",
+    "echo",
+    "fable",
+    "nova",
+    "onyx",
+    "sage",
+    "shimmer",
+    "verse",
+]
+VoiceGenerationFormat = Literal["mp3", "opus", "aac", "flac", "wav", "pcm"]
 
 
 class APIErrorResponse(BaseModel):
@@ -167,6 +181,35 @@ class VoiceTranscriptionRequest(BaseModel):
 class VoiceTranscriptionResponse(BaseModel):
     transcript: str
     model: str
+
+
+class VoiceGenerationRequest(BaseModel):
+    input: str = Field(
+        ...,
+        min_length=1,
+        max_length=4096,
+        description="Text to synthesize into spoken audio.",
+    )
+    voice: VoiceGenerationVoice = Field(default="alloy")
+    instructions: Optional[str] = Field(
+        default=None,
+        description="Optional speaking guidance such as tone or delivery style.",
+    )
+    response_format: VoiceGenerationFormat = Field(default="mp3")
+    speed: float = Field(
+        default=1.0,
+        ge=0.25,
+        le=4.0,
+        description="Playback speed multiplier for synthesized audio.",
+    )
+
+
+class VoiceGenerationResponse(BaseModel):
+    audio_base64: str
+    mime_type: str
+    model: str
+    voice: VoiceGenerationVoice
+    response_format: VoiceGenerationFormat
 
 
 class HymnSection(BaseModel):
