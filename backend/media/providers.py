@@ -6,11 +6,11 @@ import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, Protocol
+from typing import TYPE_CHECKING, Optional, Protocol
 from uuid import uuid4
 
-from dotenv import load_dotenv
-from openai import OpenAI
+if TYPE_CHECKING:
+    from openai import OpenAI
 
 _ENV_LOADED = False
 
@@ -64,12 +64,19 @@ class MusicProvider(Protocol):
 
 
 class OpenAIImageProvider:
-    def __init__(self, *, api_key: Optional[str] = None, client: Optional[OpenAI] = None) -> None:
+    def __init__(self, *, api_key: Optional[str] = None, client: Optional["OpenAI"] = None) -> None:
         _load_backend_env()
         resolved_key = api_key or os.getenv("OPENAI_API_KEY")
         if not resolved_key and client is None:
             raise ImageProviderError("OPENAI_API_KEY is not set")
-        self._client = client or OpenAI(api_key=resolved_key)
+        if client is None:
+            try:
+                from openai import OpenAI
+            except ModuleNotFoundError as exc:
+                raise ImageProviderError("openai package is not installed") from exc
+            self._client = OpenAI(api_key=resolved_key)
+        else:
+            self._client = client
 
     def generate(
         self,
@@ -230,6 +237,10 @@ def build_music_provider_from_env() -> MusicProvider:
 def _load_backend_env() -> None:
     global _ENV_LOADED
     if _ENV_LOADED:
+        return
+    try:
+        from dotenv import load_dotenv
+    except ModuleNotFoundError:
         return
     env_path = Path(__file__).resolve().parents[1] / ".env"
     load_dotenv(env_path)

@@ -1,10 +1,10 @@
-from .music_generation import (
+from .domain import (
     MusicGenerationError,
     MusicGenerationJobNotFoundError,
     MusicGenerationProviderError,
-    MusicGenerationService,
     MusicGenerationValidationError,
 )
+from .service import MusicGenerationService
 
 __all__ = [
     "MusicGenerationError",

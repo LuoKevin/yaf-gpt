@@ -1,9 +1,9 @@
-from .voice_transcription import (
+from .domain import (
     VoiceTranscriptionError,
     VoiceTranscriptionProviderError,
-    VoiceTranscriptionService,
     VoiceTranscriptionValidationError,
 )
+from .service import VoiceTranscriptionService
 
 __all__ = [
     "VoiceTranscriptionError",
