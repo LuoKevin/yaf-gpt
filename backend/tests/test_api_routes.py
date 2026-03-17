@@ -7,16 +7,11 @@ from fastapi.testclient import TestClient
 from backend.app.main import app
 from backend.app.routes.bible import get_bible_provider
 from backend.app.routes.chat import get_persona_chat_service
-from backend.app.routes.hymn import get_hymn_service
 from backend.app.routes.image import get_passage_image_service
 from backend.app.routes.music import get_music_generation_service
 from backend.app.routes.study_plan import get_study_plan_service
 from backend.app.routes.voice import get_voice_transcription_service
 from backend.app.schemas import (
-    HymnGenerateResponse,
-    HymnJobResponse,
-    HymnLyrics,
-    HymnSection,
     MusicGenerateResponse,
     MusicJobResponse,
     PassageImageResponse,
@@ -30,13 +25,12 @@ from backend.services.bible_lookup import (
     PassageNotFoundError,
     PassageVerse,
 )
-from backend.services.hymn_service import HymnJobNotFoundError, HymnValidationError
-from backend.services.persona_chat_service import PersonaChatProviderError, PersonaChatValidationError
 from backend.services.music_generation_service import (
     MusicGenerationJobNotFoundError,
     MusicGenerationProviderError,
     MusicGenerationValidationError,
 )
+from backend.services.persona_chat_service import PersonaChatProviderError, PersonaChatValidationError
 from backend.services.study_plan_service import StudyPlanValidationError
 from backend.services.voice_transcription_service import (
     VoiceTranscriptionProviderError,
@@ -113,45 +107,6 @@ class _PersonaChatServiceStub:
         return "gpt-4o-mini", iter(["Sample ", "persona response"])
 
 
-class _HymnServiceStub:
-    def generate_hymn(self, payload):
-        if payload.reference == "Bad 1:1":
-            raise InvalidReferenceError("bad ref")
-        if payload.reference == "Malformed 1:1":
-            raise HymnValidationError("bad hymn output")
-        return HymnGenerateResponse(
-            reference=payload.reference,
-            normalized_reference=payload.reference,
-            translation=payload.translation,
-            passage_text="Passage text",
-            hymn=HymnLyrics(
-                title="Hope in the Storm",
-                theme="Trusting Christ through trial",
-                scripture_references=["Luke 21:5-28"],
-                sections=[
-                    HymnSection(label="Verse 1", lyrics="Lift up your eyes in trial."),
-                    HymnSection(label="Chorus", lyrics="Christ is our steadfast hope."),
-                ],
-            ),
-            job_id="job-123",
-            job_status="queued",
-            provider="mock",
-            model="gpt-4o-mini",
-            usage=UsageMetrics(prompt_tokens=20, completion_tokens=40, total_tokens=60),
-        )
-
-    def get_job_status(self, job_id: str):
-        if job_id == "missing":
-            raise HymnJobNotFoundError("not found")
-        return HymnJobResponse(
-            job_id=job_id,
-            status="completed",
-            provider="mock",
-            audio_url="https://example.com/mock.mp3",
-            error=None,
-        )
-
-
 class _VoiceTranscriptionServiceStub:
     model_name = "gpt-4o-mini-transcribe"
 
@@ -199,7 +154,6 @@ class APIRouteTests(unittest.TestCase):
         app.dependency_overrides[get_study_plan_service] = lambda: _StudyPlanServiceStub()
         app.dependency_overrides[get_passage_image_service] = lambda: _PassageImageServiceStub()
         app.dependency_overrides[get_persona_chat_service] = lambda: _PersonaChatServiceStub()
-        app.dependency_overrides[get_hymn_service] = lambda: _HymnServiceStub()
         app.dependency_overrides[get_voice_transcription_service] = lambda: _VoiceTranscriptionServiceStub()
         app.dependency_overrides[get_music_generation_service] = lambda: _MusicGenerationServiceStub()
         self.client = TestClient(app)
@@ -415,52 +369,6 @@ class APIRouteTests(unittest.TestCase):
     def test_music_job_status_provider_error_maps_to_502(self) -> None:
         response = self.client.get("/api/music/jobs/provider")
         self.assertEqual(response.status_code, 502)
-
-    def test_hymn_generate_success(self) -> None:
-        response = self.client.post(
-            "/api/hymn/generate",
-            json={
-                "reference": "Luke 21:5-28",
-                "translation": "WEB",
-                "style_hint": "modern worship hymn, acoustic",
-            },
-        )
-        self.assertEqual(response.status_code, 200)
-        body = response.json()
-        self.assertEqual(body["job_id"], "job-123")
-
-    def test_hymn_generate_invalid_reference_maps_to_400(self) -> None:
-        response = self.client.post(
-            "/api/hymn/generate",
-            json={
-                "reference": "Bad 1:1",
-                "translation": "WEB",
-                "style_hint": "modern worship hymn, acoustic",
-            },
-        )
-        self.assertEqual(response.status_code, 400)
-
-    def test_hymn_generate_validation_error_maps_to_502(self) -> None:
-        response = self.client.post(
-            "/api/hymn/generate",
-            json={
-                "reference": "Malformed 1:1",
-                "translation": "WEB",
-                "style_hint": "modern worship hymn, acoustic",
-            },
-        )
-        self.assertEqual(response.status_code, 502)
-
-    def test_hymn_job_status_success(self) -> None:
-        response = self.client.get("/api/hymn/jobs/job-123")
-        self.assertEqual(response.status_code, 200)
-        body = response.json()
-        self.assertEqual(body["status"], "completed")
-
-    def test_hymn_job_not_found_maps_to_404(self) -> None:
-        response = self.client.get("/api/hymn/jobs/missing")
-        self.assertEqual(response.status_code, 404)
-
 
 if __name__ == "__main__":
     unittest.main()

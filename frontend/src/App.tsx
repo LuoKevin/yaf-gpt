@@ -6,8 +6,8 @@ type TranslationCode = "WEB" | "KJV";
 type ImageStyle = "modern_editorial_illustration";
 type HealthStatus = "checking" | "online" | "offline";
 type PersonaChatRole = "user" | "assistant";
-type HymnJobStatus = "queued" | "in_progress" | "completed" | "failed";
-type ViewMode = "study" | "hymn" | "discussion";
+type MusicJobStatus = "queued" | "in_progress" | "completed" | "failed";
+type ViewMode = "study" | "music" | "discussion";
 
 type BibleVerse = {
   book: string;
@@ -71,34 +71,17 @@ type VoiceTranscriptionResponse = {
   model: string;
 };
 
-type HymnSection = {
-  label: string;
-  lyrics: string;
-};
-
-type HymnLyrics = {
-  title: string;
-  theme: string;
-  scripture_references: string[];
-  sections: HymnSection[];
-};
-
-type HymnGenerateResponse = {
-  reference: string;
-  normalized_reference: string;
-  translation: TranslationCode;
-  passage_text: string;
-  hymn: HymnLyrics;
+type MusicGenerateResponse = {
   job_id: string;
-  job_status: HymnJobStatus;
+  status: MusicJobStatus;
   provider: string;
-  model: string;
-  usage: UsageMetrics | null;
+  title: string;
+  prompt: string;
 };
 
-type HymnJobResponse = {
+type MusicJobResponse = {
   job_id: string;
-  status: HymnJobStatus;
+  status: MusicJobStatus;
   provider: string;
   audio_url: string | null;
   error: string | null;
@@ -106,6 +89,16 @@ type HymnJobResponse = {
 
 function normalizeReference(value: string) {
   return value.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+function buildMusicPrompt(reference: string, passageText: string | null, prompt: string) {
+  const parts = [
+    reference ? `Scripture reference: ${reference}.` : null,
+    passageText ? `Passage text:\n${passageText}` : null,
+    prompt ? `Song direction:\n${prompt}` : null
+  ].filter((value): value is string => value !== null);
+
+  return parts.join("\n\n");
 }
 
 function buildApiUrl(path: string, params?: Record<string, string>) {
@@ -302,12 +295,14 @@ export default function App() {
   const personaStreamRef = useRef<MediaStream | null>(null);
   const personaChunksRef = useRef<Blob[]>([]);
 
-  const [hymnStyle, setHymnStyle] = useState("modern worship hymn, acoustic");
-  const [hymnMood, setHymnMood] = useState("hopeful");
-  const [hymnResult, setHymnResult] = useState<HymnGenerateResponse | null>(null);
-  const [hymnJob, setHymnJob] = useState<HymnJobResponse | null>(null);
-  const [hymnError, setHymnError] = useState("");
-  const [isGeneratingHymn, setIsGeneratingHymn] = useState(false);
+  const [musicTitle, setMusicTitle] = useState("");
+  const [musicPrompt, setMusicPrompt] = useState("");
+  const [musicStyle, setMusicStyle] = useState("modern worship, acoustic");
+  const [musicMood, setMusicMood] = useState("hopeful");
+  const [musicResult, setMusicResult] = useState<MusicGenerateResponse | null>(null);
+  const [musicJob, setMusicJob] = useState<MusicJobResponse | null>(null);
+  const [musicError, setMusicError] = useState("");
+  const [isGeneratingMusic, setIsGeneratingMusic] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -332,27 +327,27 @@ export default function App() {
     };
   }, []);
 
-  const hymnJobId = hymnResult?.job_id ?? null;
-  const hymnJobStatus = hymnJob?.status ?? hymnResult?.job_status ?? null;
+  const musicJobId = musicResult?.job_id ?? null;
+  const musicJobStatus = musicJob?.status ?? musicResult?.status ?? null;
 
   useEffect(() => {
-    if (!hymnJobId) {
+    if (!musicJobId) {
       return;
     }
-    if (hymnJobStatus === "completed" || hymnJobStatus === "failed") {
+    if (musicJobStatus === "completed" || musicJobStatus === "failed") {
       return;
     }
 
     let cancelled = false;
     const poll = async () => {
       try {
-        const next = await requestJson<HymnJobResponse>(`/api/hymn/jobs/${hymnJobId}`);
+        const next = await requestJson<MusicJobResponse>(`/api/music/jobs/${musicJobId}`);
         if (!cancelled) {
-          setHymnJob(next);
+          setMusicJob(next);
         }
       } catch (error) {
         if (!cancelled) {
-          setHymnError(error instanceof Error ? error.message : "Unable to refresh hymn status.");
+          setMusicError(error instanceof Error ? error.message : "Unable to refresh music status.");
         }
       }
     };
@@ -366,7 +361,7 @@ export default function App() {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [hymnJobId, hymnJobStatus]);
+  }, [musicJobId, musicJobStatus]);
 
   function releasePersonaMediaResources() {
     if (personaStreamRef.current) {
@@ -747,71 +742,61 @@ export default function App() {
     setIsTranscribingPersona(false);
   }
 
-  async function handleHymnGeneration() {
+  async function handleMusicGeneration() {
     const trimmedReference = reference.trim();
-    if (!trimmedReference) {
-      setHymnError("Enter a reference.");
+    const trimmedPrompt = musicPrompt.trim();
+    if (!trimmedReference && !trimmedPrompt) {
+      setMusicError("Enter a reference or prompt.");
       return;
     }
 
-    setIsGeneratingHymn(true);
-    setHymnError("");
+    setIsGeneratingMusic(true);
+    setMusicError("");
 
     try {
       const canReusePassage =
         passage !== null &&
         normalizeReference(passage.reference) === normalizeReference(trimmedReference) &&
         passage.translation === translation;
+      const prompt = buildMusicPrompt(trimmedReference, canReusePassage ? passage.text : null, trimmedPrompt);
 
-      const response = await requestJson<HymnGenerateResponse>("/api/hymn/generate", {
+      const response = await requestJson<MusicGenerateResponse>("/api/music/generate", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          reference: trimmedReference,
-          translation,
-          style_hint: hymnStyle.trim(),
-          mood_hint: hymnMood.trim() || undefined,
-          user_notes: userNotes.trim() || undefined,
-          passage_text: canReusePassage ? passage.text : undefined
+          title: musicTitle.trim() || undefined,
+          prompt,
+          style_hint: musicStyle.trim(),
+          mood_hint: musicMood.trim() || undefined
         })
       });
 
-      setHymnResult(response);
-      setHymnJob({
+      setMusicResult(response);
+      setMusicJob({
         job_id: response.job_id,
-        status: response.job_status,
+        status: response.status,
         provider: response.provider,
         audio_url: null,
         error: null
       });
-
-      if (!canReusePassage) {
-        setPassage({
-          reference: response.reference,
-          normalized_reference: response.normalized_reference,
-          translation: response.translation,
-          text: response.passage_text,
-          verses: []
-        });
-      }
     } catch (error) {
-      setHymnResult(null);
-      setHymnJob(null);
-      setHymnError(error instanceof Error ? error.message : "Unable to generate hymn.");
+      setMusicResult(null);
+      setMusicJob(null);
+      setMusicError(error instanceof Error ? error.message : "Unable to generate music.");
     } finally {
-      setIsGeneratingHymn(false);
+      setIsGeneratingMusic(false);
     }
   }
 
   const hasUsage = studyPlan?.usage && studyPlan.usage.total_tokens !== null;
-  const hymnStatusLabel = useMemo(() => {
-    if (!hymnJobStatus) {
+  const musicStatusLabel = useMemo(() => {
+    if (!musicJobStatus) {
       return "queued";
     }
-    return hymnJobStatus;
-  }, [hymnJobStatus]);
+    return musicJobStatus;
+  }, [musicJobStatus]);
 
   return (
     <div className="shell">
@@ -840,10 +825,10 @@ export default function App() {
         </button>
         <button
           type="button"
-          className={`view-button ${activeView === "hymn" ? "active" : ""}`}
-          onClick={() => setActiveView("hymn")}
+          className={`view-button ${activeView === "music" ? "active" : ""}`}
+          onClick={() => setActiveView("music")}
         >
-          Hymn
+          Music
         </button>
         <button
           type="button"
@@ -860,30 +845,26 @@ export default function App() {
           <div className="panel-heading">
             <div>
               <p className="panel-kicker">Inputs</p>
-              <h2>{activeView === "study" ? "Study" : activeView === "hymn" ? "Hymn" : "Discussion"}</h2>
+              <h2>{activeView === "study" ? "Study" : activeView === "music" ? "Music" : "Discussion"}</h2>
             </div>
           </div>
 
-          {activeView !== "hymn" ? (
-            <>
-              <label className="field">
-                <span>Reference</span>
-                <input
-                  value={reference}
-                  onChange={(event) => setReference(event.target.value)}
-                  placeholder="Luke 21:5-28"
-                />
-              </label>
+          <label className="field">
+            <span>Reference</span>
+            <input
+              value={reference}
+              onChange={(event) => setReference(event.target.value)}
+              placeholder="Luke 21:5-28"
+            />
+          </label>
 
-              <label className="field">
-                <span>Translation</span>
-                <select value={translation} onChange={(event) => setTranslation(event.target.value as TranslationCode)}>
-                  <option value="WEB">WEB</option>
-                  <option value="KJV">KJV</option>
-                </select>
-              </label>
-            </>
-          ) : null}
+          <label className="field">
+            <span>Translation</span>
+            <select value={translation} onChange={(event) => setTranslation(event.target.value as TranslationCode)}>
+              <option value="WEB">WEB</option>
+              <option value="KJV">KJV</option>
+            </select>
+          </label>
 
           {activeView === "study" ? (
             <>
@@ -945,33 +926,42 @@ export default function App() {
             </>
           ) : null}
 
-          {activeView === "hymn" ? (
+          {activeView === "music" ? (
             <>
+              <label className="field">
+                <span>Track title</span>
+                <input
+                  value={musicTitle}
+                  onChange={(event) => setMusicTitle(event.target.value)}
+                  placeholder="Optional"
+                />
+              </label>
+
+              <label className="field">
+                <span>Prompt</span>
+                <textarea
+                  rows={4}
+                  value={musicPrompt}
+                  onChange={(event) => setMusicPrompt(event.target.value)}
+                  placeholder="Describe the lyrics or direction for the track"
+                />
+              </label>
+
               <label className="field">
                 <span>Style</span>
                 <input
-                  value={hymnStyle}
-                  onChange={(event) => setHymnStyle(event.target.value)}
-                  placeholder="modern worship hymn, acoustic"
+                  value={musicStyle}
+                  onChange={(event) => setMusicStyle(event.target.value)}
+                  placeholder="modern worship, acoustic"
                 />
               </label>
 
               <label className="field">
                 <span>Mood</span>
                 <input
-                  value={hymnMood}
-                  onChange={(event) => setHymnMood(event.target.value)}
+                  value={musicMood}
+                  onChange={(event) => setMusicMood(event.target.value)}
                   placeholder="hopeful"
-                />
-              </label>
-
-              <label className="field">
-                <span>Notes</span>
-                <textarea
-                  rows={3}
-                  value={userNotes}
-                  onChange={(event) => setUserNotes(event.target.value)}
-                  placeholder="Optional"
                 />
               </label>
 
@@ -979,10 +969,10 @@ export default function App() {
                 <button
                   type="button"
                   className="primary-button"
-                  onClick={handleHymnGeneration}
-                  disabled={isGeneratingHymn}
+                  onClick={handleMusicGeneration}
+                  disabled={isGeneratingMusic}
                 >
-                  {isGeneratingHymn ? "Generating..." : "Generate hymn"}
+                  {isGeneratingMusic ? "Generating..." : "Generate music"}
                 </button>
               </div>
             </>
@@ -1184,60 +1174,43 @@ export default function App() {
             </article>
           ) : null}
 
-          {activeView === "hymn" ? (
+          {activeView === "music" ? (
             <article className="panel">
               <div className="panel-heading">
                 <div>
-                  <p className="panel-kicker">Hymn</p>
-                  <h2>{hymnResult?.hymn.title ?? "No hymn"}</h2>
+                  <p className="panel-kicker">Music</p>
+                  <h2>{musicResult?.title ?? "No track"}</h2>
                 </div>
-                {hymnResult ? <span className="meta-badge">{hymnResult.model}</span> : null}
+                {musicResult ? <span className="meta-badge">{musicJob?.provider ?? musicResult.provider}</span> : null}
               </div>
 
-              {hymnError ? <p className="error-banner">{hymnError}</p> : null}
+              {musicError ? <p className="error-banner">{musicError}</p> : null}
 
-              {hymnResult ? (
+              {musicResult ? (
                 <div className="stack">
-                  <p className="muted-text">Theme: {hymnResult.hymn.theme}</p>
                   <p className="status-inline">
-                    Status: <span className={`job-status ${hymnStatusLabel}`}>{hymnStatusLabel}</span>
+                    Status: <span className={`job-status ${musicStatusLabel}`}>{musicStatusLabel}</span>
                   </p>
-                  <p className="muted-text">Provider: {hymnJob?.provider ?? hymnResult.provider}</p>
-
-                  {hymnResult.hymn.scripture_references.length > 0 ? (
-                    <section>
-                      <h3>References</h3>
-                      <ul className="content-list">
-                        {hymnResult.hymn.scripture_references.map((ref) => (
-                          <li key={ref}>{ref}</li>
-                        ))}
-                      </ul>
-                    </section>
-                  ) : null}
+                  <p className="muted-text">Provider: {musicJob?.provider ?? musicResult.provider}</p>
 
                   <section>
-                    <h3>Lyrics</h3>
-                    <div className="stack">
-                      {hymnResult.hymn.sections.map((section) => (
-                        <article key={`${section.label}-${section.lyrics}`} className="hymn-section">
-                          <p className="summary-label">{section.label}</p>
-                          <p className="passage-text">{section.lyrics}</p>
-                        </article>
-                      ))}
-                    </div>
+                    <h3>Prompt</h3>
+                    <p className="passage-text">{musicResult.prompt}</p>
                   </section>
 
-                  {hymnJob?.audio_url ? (
+                  {musicJob?.error ? <p className="error-banner">{musicJob.error}</p> : null}
+
+                  {musicJob?.audio_url ? (
                     <section>
                       <h3>Audio</h3>
-                      <audio controls src={hymnJob.audio_url} />
+                      <audio controls src={musicJob.audio_url} />
                     </section>
                   ) : (
                     <p className="empty-state">Audio pending.</p>
                   )}
                 </div>
               ) : (
-                <p className="empty-state">Generate a hymn.</p>
+                <p className="empty-state">Generate a track.</p>
               )}
             </article>
           ) : null}

@@ -29,7 +29,7 @@ case "${quest}" in
     npm --prefix frontend run build
     ;;
   quest4)
-    "${python_bin}" -m unittest backend.tests.test_hymn_service backend.tests.test_media_providers backend.tests.test_api_routes
+    "${python_bin}" -m unittest backend.tests.test_music_generation_service backend.tests.test_media_providers backend.tests.test_api_routes
     npm --prefix frontend run build
     ;;
   quest5)

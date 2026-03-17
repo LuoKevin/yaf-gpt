@@ -52,8 +52,6 @@ Reference: `voice_worker/README.md`
 - `POST /api/study-plan`
 - `POST /api/passage-image`
 - `POST /api/persona-chat`
-- `POST /api/hymn/generate`
-- `GET /api/hymn/jobs/{job_id}`
 - `POST /api/music/generate`
 - `GET /api/music/jobs/{job_id}`
 - `POST /api/voice/transcribe`
@@ -65,7 +63,6 @@ Reference: `voice_worker/README.md`
 - `IMAGE_PROVIDER` (default: `openai`)
 - `IMAGE_MODEL` (default: `gpt-image-1`)
 - `MUSIC_PROVIDER` (default: `mock`, scaffolded `suno`)
-- `HYMN_LYRICS_MODEL` (default: `gpt-4o-mini`)
 - `SUNO_API_KEY` and `SUNO_BASE_URL` (for future real music adapter)
 - `VOICE_TRANSCRIPTION_MODEL` (default: `gpt-4o-mini-transcribe`)
 - `VOICE_WORKER_PROVIDER` (voice worker only; default: `mock`)

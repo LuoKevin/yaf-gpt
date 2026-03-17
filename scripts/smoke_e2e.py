@@ -75,31 +75,30 @@ def main() -> None:
     if not chat.get("reply"):
         raise RuntimeError("Persona chat returned empty reply")
 
-    hymn = _request(
-        "/api/hymn/generate",
+    music = _request(
+        "/api/music/generate",
         method="POST",
         payload={
-            "reference": REFERENCE,
-            "translation": TRANSLATION,
-            "style_hint": "modern worship hymn, acoustic",
-            "passage_text": passage_text,
+            "prompt": f"Create a worship track inspired by {REFERENCE}. {passage_text[:220]}",
+            "style_hint": "modern worship, acoustic",
+            "mood_hint": "hopeful",
         },
     )
-    job_id = hymn.get("job_id")
+    job_id = music.get("job_id")
     if not job_id:
-        raise RuntimeError("Hymn generation did not return a job_id")
+        raise RuntimeError("Music generation did not return a job_id")
 
-    status = hymn.get("job_status")
+    status = music.get("status")
     for _ in range(8):
         if status in {"completed", "failed"}:
             break
         time.sleep(1.0)
-        job = _request(f"/api/hymn/jobs/{job_id}")
+        job = _request(f"/api/music/jobs/{job_id}")
         status = job.get("status")
 
     print("Smoke flow complete")
     print(f"reference={REFERENCE}")
-    print(f"hymn_job_status={status}")
+    print(f"music_job_status={status}")
 
 
 if __name__ == "__main__":
