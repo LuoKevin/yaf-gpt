@@ -15,7 +15,7 @@ DEFAULT_VOICE_CHAT_MODEL = "gpt-realtime-mini"
 DEFAULT_VOICE_CHAT_VOICE = "cedar"
 DEFAULT_VOICE_CHAT_TRANSCRIPTION_MODEL = "gpt-4o-mini-transcribe"
 DEFAULT_VOICE_CHAT_SECRET_TTL_SECONDS = 60
-DEFAULT_VOICE_CHAT_WEBRTC_URL = "https://api.openai.com/v1/realtime"
+DEFAULT_VOICE_CHAT_WEBRTC_URL = "https://api.openai.com/v1/realtime/calls"
 
 CALVINIST_BIBLE_STUDY = (
     "You are a concise, respectful assistant specializing in Christian "

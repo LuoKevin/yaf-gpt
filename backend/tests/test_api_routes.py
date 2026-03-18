@@ -166,7 +166,7 @@ class _VoiceRealtimeSessionServiceStub:
                 "expires_at": 1_700_000_000,
                 "model": "gpt-realtime-mini",
                 "voice": voice or "cedar",
-                "webrtc_url": "https://api.openai.com/v1/realtime",
+                "webrtc_url": "https://api.openai.com/v1/realtime/calls",
             },
         )()
 
@@ -387,7 +387,7 @@ class APIRouteTests(unittest.TestCase):
         self.assertEqual(body["client_secret"], "ephemeral-secret")
         self.assertEqual(body["model"], "gpt-realtime-mini")
         self.assertEqual(body["voice"], "marin")
-        self.assertEqual(body["webrtc_url"], "https://api.openai.com/v1/realtime")
+        self.assertEqual(body["webrtc_url"], "https://api.openai.com/v1/realtime/calls")
 
     def test_voice_realtime_session_invalid_reference_maps_to_400(self) -> None:
         response = self.client.post(

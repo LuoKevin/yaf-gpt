@@ -69,6 +69,8 @@ export default function App() {
   const realtimeLocalStreamRef = useRef<MediaStream | null>(null);
   const realtimeAudioRef = useRef<HTMLAudioElement | null>(null);
   const realtimeAssistantItemIdRef = useRef<string | null>(null);
+  const realtimeUserTranscriptItemIdsRef = useRef<Set<string>>(new Set());
+  const realtimeFinalizedAssistantItemIdsRef = useRef<Set<string>>(new Set());
 
   const [musicTitle, setMusicTitle] = useState("");
   const [musicPrompt, setMusicPrompt] = useState("");
@@ -175,22 +177,25 @@ export default function App() {
     }
 
     realtimeAssistantItemIdRef.current = null;
+    realtimeUserTranscriptItemIdsRef.current.clear();
+    realtimeFinalizedAssistantItemIdsRef.current.clear();
     setIsRealtimeVoiceConnecting(false);
     setIsRealtimeVoiceActive(false);
     setRealtimeVoiceStatus("");
   }
 
-  function appendRealtimeUserTranscript(transcript: string) {
+  function appendRealtimeUserTranscript(itemId: string, transcript: string) {
     const cleaned = transcript.trim();
-    if (!cleaned) {
+    if (!cleaned || realtimeUserTranscriptItemIdsRef.current.has(itemId)) {
       return;
     }
 
+    realtimeUserTranscriptItemIdsRef.current.add(itemId);
     setPersonaMessages((current) => [...current, { role: "user", content: cleaned }]);
   }
 
   function appendRealtimeAssistantDelta(itemId: string, delta: string) {
-    if (!delta) {
+    if (!delta || realtimeFinalizedAssistantItemIdsRef.current.has(itemId)) {
       return;
     }
 
@@ -222,6 +227,9 @@ export default function App() {
       realtimeAssistantItemIdRef.current = null;
       return;
     }
+    if (realtimeFinalizedAssistantItemIdsRef.current.has(itemId)) {
+      return;
+    }
 
     setPersonaMessages((current) => {
       if (current.length === 0) {
@@ -234,11 +242,15 @@ export default function App() {
         next[next.length - 1] = { role: "assistant", content: cleaned };
         return next;
       }
+      if (last.role === "assistant" && last.content.trim() === cleaned) {
+        return current;
+      }
 
       next.push({ role: "assistant", content: cleaned });
       return next;
     });
 
+    realtimeFinalizedAssistantItemIdsRef.current.add(itemId);
     realtimeAssistantItemIdRef.current = null;
   }
 
@@ -259,8 +271,11 @@ export default function App() {
     }
 
     if (eventType === "conversation.item.input_audio_transcription.completed") {
+      const itemId = "item_id" in event && typeof event.item_id === "string" ? event.item_id : "";
       const transcript = "transcript" in event && typeof event.transcript === "string" ? event.transcript : "";
-      appendRealtimeUserTranscript(transcript);
+      if (itemId && transcript) {
+        appendRealtimeUserTranscript(itemId, transcript);
+      }
       return;
     }
 
@@ -755,7 +770,6 @@ export default function App() {
 
       const answerSdp = await requestRealtimeAnswer(
         session.webrtc_url,
-        session.model,
         session.client_secret,
         offer.sdp
       );

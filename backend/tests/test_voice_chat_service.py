@@ -87,7 +87,7 @@ class VoiceChatServiceTests(unittest.TestCase):
             model="gpt-realtime-mini",
             transcription_model="gpt-4o-mini-transcribe",
             default_voice="cedar",
-            webrtc_url="https://api.openai.com/v1/realtime",
+            webrtc_url="https://api.openai.com/v1/realtime/calls",
             secret_ttl_seconds=90,
         )
 
@@ -101,7 +101,7 @@ class VoiceChatServiceTests(unittest.TestCase):
         self.assertEqual(session.expires_at, 1_700_000_000)
         self.assertEqual(session.model, "gpt-realtime-mini")
         self.assertEqual(session.voice, "cedar")
-        self.assertEqual(session.webrtc_url, "https://api.openai.com/v1/realtime")
+        self.assertEqual(session.webrtc_url, "https://api.openai.com/v1/realtime/calls")
         self.assertIsNotNone(client.last_kwargs)
         self.assertEqual(client.last_kwargs["expires_after"]["seconds"], 90)
         self.assertEqual(client.last_kwargs["session"]["audio"]["output"]["voice"], "marin")
