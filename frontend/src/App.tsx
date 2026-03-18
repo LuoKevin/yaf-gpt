@@ -1,264 +1,31 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
-
-type TranslationCode = "WEB" | "KJV";
-type ImageStyle = "modern_editorial_illustration";
-type HealthStatus = "checking" | "online" | "offline";
-type PersonaChatRole = "user" | "assistant";
-type MusicJobStatus = "queued" | "in_progress" | "completed" | "failed";
-type ViewMode = "study" | "music" | "discussion";
-
-type BibleVerse = {
-  book: string;
-  chapter: number;
-  verse: number;
-  text: string;
-};
-
-type BiblePassageResponse = {
-  reference: string;
-  translation: TranslationCode;
-  normalized_reference: string;
-  text: string;
-  verses: BibleVerse[];
-};
-
-type UsageMetrics = {
-  prompt_tokens: number | null;
-  completion_tokens: number | null;
-  total_tokens: number | null;
-};
-
-type StudyPlanResponse = {
-  reference: string;
-  normalized_reference: string;
-  translation: TranslationCode;
-  passage_text: string;
-  passage_title: string;
-  context_points: string[];
-  discussion_questions: string[];
-  reflection_questions: string[];
-  include_question_notes: boolean;
-  discussion_question_notes: string[] | null;
-  reflection_question_notes: string[] | null;
-  model: string;
-  usage: UsageMetrics | null;
-};
-
-type PassageImageResponse = {
-  reference: string;
-  translation: TranslationCode;
-  style: ImageStyle;
-  prompt_used: string;
-  image_b64_or_url: string;
-  alt_text: string;
-};
-
-type PersonaChatMessage = {
-  role: PersonaChatRole;
-  content: string;
-};
-
-type PersonaChatResponse = {
-  reply: string;
-  model: string;
-  usage: UsageMetrics | null;
-};
-
-type VoiceTranscriptionResponse = {
-  transcript: string;
-  model: string;
-};
-
-type MusicGenerateResponse = {
-  job_id: string;
-  status: MusicJobStatus;
-  provider: string;
-  title: string;
-  prompt: string;
-};
-
-type MusicJobResponse = {
-  job_id: string;
-  status: MusicJobStatus;
-  provider: string;
-  audio_url: string | null;
-  error: string | null;
-};
-
-function normalizeReference(value: string) {
-  return value.trim().replace(/\s+/g, " ").toLowerCase();
-}
-
-function buildMusicPrompt(reference: string, passageText: string | null, prompt: string) {
-  const parts = [
-    reference ? `Scripture reference: ${reference}.` : null,
-    passageText ? `Passage text:\n${passageText}` : null,
-    prompt ? `Song direction:\n${prompt}` : null
-  ].filter((value): value is string => value !== null);
-
-  return parts.join("\n\n");
-}
-
-function buildApiUrl(path: string, params?: Record<string, string>) {
-  const base = API_BASE || window.location.origin;
-  const url = new URL(path, base);
-
-  if (params) {
-    Object.entries(params).forEach(([key, value]) => {
-      url.searchParams.set(key, value);
-    });
-  }
-
-  return url.toString();
-}
-
-async function requestJson<T>(path: string, init?: RequestInit, params?: Record<string, string>) {
-  const response = await fetch(buildApiUrl(path, params), {
-    ...init,
-    headers: {
-      Accept: "application/json",
-      ...(init?.headers ?? {})
-    }
-  });
-
-  const raw = await response.text();
-  const payload = raw ? (JSON.parse(raw) as unknown) : null;
-
-  if (!response.ok) {
-    const detail =
-      typeof payload === "object" &&
-      payload !== null &&
-      "detail" in payload &&
-      typeof payload.detail === "string"
-        ? payload.detail
-        : `Request failed with status ${response.status}.`;
-    throw new Error(detail);
-  }
-
-  return payload as T;
-}
-
-type SseEventPayload = {
-  event: string;
-  data: unknown;
-};
-
-function parseSseEvent(rawEvent: string): SseEventPayload | null {
-  const lines = rawEvent.split(/\r?\n/);
-  let event = "message";
-  const dataLines: string[] = [];
-
-  for (const line of lines) {
-    if (!line || line.startsWith(":")) {
-      continue;
-    }
-    if (line.startsWith("event:")) {
-      event = line.slice(6).trim();
-      continue;
-    }
-    if (line.startsWith("data:")) {
-      dataLines.push(line.slice(5).trimStart());
-    }
-  }
-
-  if (dataLines.length === 0) {
-    return null;
-  }
-
-  const rawData = dataLines.join("\n");
-  try {
-    return { event, data: JSON.parse(rawData) as unknown };
-  } catch {
-    return { event, data: rawData };
-  }
-}
-
-async function requestSse(
-  path: string,
-  init: RequestInit,
-  onEvent: (event: SseEventPayload) => void
-) {
-  const response = await fetch(buildApiUrl(path), {
-    ...init,
-    headers: {
-      Accept: "text/event-stream",
-      ...(init.headers ?? {})
-    }
-  });
-
-  if (!response.ok) {
-    const raw = await response.text();
-    let payload: unknown = null;
-    try {
-      payload = raw ? (JSON.parse(raw) as unknown) : null;
-    } catch {
-      payload = null;
-    }
-    const detail =
-      typeof payload === "object" &&
-      payload !== null &&
-      "detail" in payload &&
-      typeof payload.detail === "string"
-        ? payload.detail
-        : `Request failed with status ${response.status}.`;
-    throw new Error(detail);
-  }
-
-  if (!response.body) {
-    throw new Error("Streaming response body is unavailable.");
-  }
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) {
-      break;
-    }
-
-    buffer += decoder.decode(value, { stream: true });
-    let separatorIndex = buffer.indexOf("\n\n");
-    while (separatorIndex !== -1) {
-      const rawEvent = buffer.slice(0, separatorIndex).trim();
-      buffer = buffer.slice(separatorIndex + 2);
-      if (rawEvent) {
-        const parsed = parseSseEvent(rawEvent);
-        if (parsed) {
-          onEvent(parsed);
-        }
-      }
-      separatorIndex = buffer.indexOf("\n\n");
-    }
-  }
-
-  buffer += decoder.decode();
-  const trailing = buffer.trim();
-  if (trailing) {
-    const parsed = parseSseEvent(trailing);
-    if (parsed) {
-      onEvent(parsed);
-    }
-  }
-}
-
-function blobToDataUrl(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error("Unable to read recorded audio."));
-    reader.onloadend = () => {
-      if (typeof reader.result === "string") {
-        resolve(reader.result);
-        return;
-      }
-      reject(new Error("Unable to encode recorded audio."));
-    };
-    reader.readAsDataURL(blob);
-  });
-}
+import { DiscussionWorkspace } from "./components/DiscussionWorkspace";
+import { MusicWorkspace } from "./components/MusicWorkspace";
+import { StudyWorkspace } from "./components/StudyWorkspace";
+import { ViewSwitcher } from "./components/ViewSwitcher";
+import {
+  blobToDataUrl,
+  buildMusicPrompt,
+  normalizeReference,
+  requestJson,
+  requestRealtimeAnswer,
+  requestSse
+} from "./lib/api";
+import type {
+  BiblePassageResponse,
+  HealthStatus,
+  MusicGenerateResponse,
+  MusicJobResponse,
+  PassageImageResponse,
+  PersonaChatMessage,
+  RealtimeVoice,
+  TranslationCode,
+  ViewMode,
+  VoiceRealtimeSessionResponse,
+  VoiceTranscriptionResponse,
+  StudyPlanResponse
+} from "./types";
 
 export default function App() {
   const [activeView, setActiveView] = useState<ViewMode>("study");
@@ -290,10 +57,18 @@ export default function App() {
   const [isRecordingPersona, setIsRecordingPersona] = useState(false);
   const [isTranscribingPersona, setIsTranscribingPersona] = useState(false);
   const [enableVoiceReply, setEnableVoiceReply] = useState(true);
+  const [isRealtimeVoiceConnecting, setIsRealtimeVoiceConnecting] = useState(false);
+  const [isRealtimeVoiceActive, setIsRealtimeVoiceActive] = useState(false);
+  const [realtimeVoiceStatus, setRealtimeVoiceStatus] = useState("");
 
   const personaRecorderRef = useRef<MediaRecorder | null>(null);
   const personaStreamRef = useRef<MediaStream | null>(null);
   const personaChunksRef = useRef<Blob[]>([]);
+  const realtimePeerConnectionRef = useRef<RTCPeerConnection | null>(null);
+  const realtimeDataChannelRef = useRef<RTCDataChannel | null>(null);
+  const realtimeLocalStreamRef = useRef<MediaStream | null>(null);
+  const realtimeAudioRef = useRef<HTMLAudioElement | null>(null);
+  const realtimeAssistantItemIdRef = useRef<string | null>(null);
 
   const [musicTitle, setMusicTitle] = useState("");
   const [musicPrompt, setMusicPrompt] = useState("");
@@ -372,11 +147,161 @@ export default function App() {
     personaChunksRef.current = [];
   }
 
+  function getRealtimeAudioElement() {
+    if (!realtimeAudioRef.current) {
+      const audio = new Audio();
+      audio.autoplay = true;
+      realtimeAudioRef.current = audio;
+    }
+    return realtimeAudioRef.current;
+  }
+
+  function stopRealtimeVoiceSession() {
+    realtimeDataChannelRef.current?.close();
+    realtimeDataChannelRef.current = null;
+
+    realtimePeerConnectionRef.current?.close();
+    realtimePeerConnectionRef.current = null;
+
+    if (realtimeLocalStreamRef.current) {
+      realtimeLocalStreamRef.current.getTracks().forEach((track) => track.stop());
+    }
+    realtimeLocalStreamRef.current = null;
+
+    const audio = realtimeAudioRef.current;
+    if (audio) {
+      audio.pause();
+      audio.srcObject = null;
+    }
+
+    realtimeAssistantItemIdRef.current = null;
+    setIsRealtimeVoiceConnecting(false);
+    setIsRealtimeVoiceActive(false);
+    setRealtimeVoiceStatus("");
+  }
+
+  function appendRealtimeUserTranscript(transcript: string) {
+    const cleaned = transcript.trim();
+    if (!cleaned) {
+      return;
+    }
+
+    setPersonaMessages((current) => [...current, { role: "user", content: cleaned }]);
+  }
+
+  function appendRealtimeAssistantDelta(itemId: string, delta: string) {
+    if (!delta) {
+      return;
+    }
+
+    setPersonaMessages((current) => {
+      if (realtimeAssistantItemIdRef.current !== itemId) {
+        realtimeAssistantItemIdRef.current = itemId;
+        return [...current, { role: "assistant", content: delta }];
+      }
+
+      if (current.length === 0) {
+        return [{ role: "assistant", content: delta }];
+      }
+
+      const next = [...current];
+      const last = next[next.length - 1];
+      if (last.role !== "assistant") {
+        next.push({ role: "assistant", content: delta });
+        return next;
+      }
+
+      next[next.length - 1] = { role: "assistant", content: `${last.content}${delta}` };
+      return next;
+    });
+  }
+
+  function finalizeRealtimeAssistantTranscript(itemId: string, transcript: string) {
+    const cleaned = transcript.trim();
+    if (!cleaned) {
+      realtimeAssistantItemIdRef.current = null;
+      return;
+    }
+
+    setPersonaMessages((current) => {
+      if (current.length === 0) {
+        return [{ role: "assistant", content: cleaned }];
+      }
+
+      const next = [...current];
+      const last = next[next.length - 1];
+      if (realtimeAssistantItemIdRef.current === itemId && last.role === "assistant") {
+        next[next.length - 1] = { role: "assistant", content: cleaned };
+        return next;
+      }
+
+      next.push({ role: "assistant", content: cleaned });
+      return next;
+    });
+
+    realtimeAssistantItemIdRef.current = null;
+  }
+
+  function handleRealtimeServerEvent(event: unknown, model: string, voice: RealtimeVoice) {
+    if (typeof event !== "object" || event === null || !("type" in event)) {
+      return;
+    }
+
+    const eventType = typeof event.type === "string" ? event.type : "";
+    if (!eventType) {
+      return;
+    }
+
+    if (eventType === "session.created" || eventType === "session.updated") {
+      setPersonaModel(model);
+      setRealtimeVoiceStatus(`Live voice connected on ${model} (${voice}).`);
+      return;
+    }
+
+    if (eventType === "conversation.item.input_audio_transcription.completed") {
+      const transcript = "transcript" in event && typeof event.transcript === "string" ? event.transcript : "";
+      appendRealtimeUserTranscript(transcript);
+      return;
+    }
+
+    if (eventType === "response.output_audio_transcript.delta") {
+      const itemId = "item_id" in event && typeof event.item_id === "string" ? event.item_id : "";
+      const delta = "delta" in event && typeof event.delta === "string" ? event.delta : "";
+      if (itemId && delta) {
+        appendRealtimeAssistantDelta(itemId, delta);
+      }
+      return;
+    }
+
+    if (eventType === "response.output_audio_transcript.done") {
+      const itemId = "item_id" in event && typeof event.item_id === "string" ? event.item_id : "";
+      const transcript = "transcript" in event && typeof event.transcript === "string" ? event.transcript : "";
+      if (itemId && transcript) {
+        finalizeRealtimeAssistantTranscript(itemId, transcript);
+      }
+      return;
+    }
+
+    if (eventType === "error") {
+      const detail =
+        "error" in event &&
+        typeof event.error === "object" &&
+        event.error !== null &&
+        "message" in event.error &&
+        typeof event.error.message === "string"
+          ? event.error.message
+          : "Realtime voice session failed.";
+      setPersonaError(detail);
+      stopRealtimeVoiceSession();
+    }
+  }
+
   useEffect(() => {
     return () => {
       if (personaRecorderRef.current && personaRecorderRef.current.state !== "inactive") {
         personaRecorderRef.current.stop();
       }
+      stopRealtimeVoiceSession();
       if (typeof window !== "undefined" && "speechSynthesis" in window) {
         window.speechSynthesis.cancel();
       }
@@ -726,10 +651,141 @@ export default function App() {
     personaRecorderRef.current.stop();
   }
 
+  async function startRealtimeVoiceSession() {
+    if (isRealtimeVoiceActive || isRealtimeVoiceConnecting || isSendingPersona || isRecordingPersona || isTranscribingPersona) {
+      return;
+    }
+    if (typeof window === "undefined" || typeof RTCPeerConnection === "undefined") {
+      setPersonaError("Live voice requires WebRTC support in this browser.");
+      return;
+    }
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setPersonaError("Microphone access is not available in this browser.");
+      return;
+    }
+
+    setPersonaError("");
+    setIsRealtimeVoiceConnecting(true);
+    setRealtimeVoiceStatus("Connecting live voice...");
+
+    try {
+      const session = await requestJson<VoiceRealtimeSessionResponse>("/api/voice/realtime/session", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          reference_context: reference.trim() || undefined,
+          translation,
+          voice: "cedar"
+        })
+      });
+
+      const localStream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        }
+      });
+
+      const peerConnection = new RTCPeerConnection();
+      const audio = getRealtimeAudioElement();
+
+      realtimeLocalStreamRef.current = localStream;
+      realtimePeerConnectionRef.current = peerConnection;
+
+      peerConnection.ontrack = (event) => {
+        audio.srcObject = event.streams[0] ?? null;
+        void audio.play().catch(() => {
+          setRealtimeVoiceStatus("Live voice connected. Tap the page if audio playback is blocked.");
+        });
+      };
+
+      peerConnection.onconnectionstatechange = () => {
+        const state = peerConnection.connectionState;
+        if (state === "connected") {
+          setIsRealtimeVoiceConnecting(false);
+          setIsRealtimeVoiceActive(true);
+          setPersonaModel(session.model);
+          setRealtimeVoiceStatus(`Live voice connected on ${session.model} (${session.voice}).`);
+          return;
+        }
+
+        if (state === "failed" || state === "closed" || state === "disconnected") {
+          stopRealtimeVoiceSession();
+          if (state === "failed") {
+            setPersonaError("Live voice connection dropped.");
+          }
+        }
+      };
+
+      const dataChannel = peerConnection.createDataChannel("oai-events");
+      realtimeDataChannelRef.current = dataChannel;
+      dataChannel.onopen = () => {
+        setRealtimeVoiceStatus("Live voice ready. Start speaking.");
+      };
+      dataChannel.onclose = () => {
+        if (realtimePeerConnectionRef.current) {
+          stopRealtimeVoiceSession();
+        }
+      };
+      dataChannel.onerror = () => {
+        setPersonaError("Live voice event channel failed.");
+      };
+      dataChannel.onmessage = (messageEvent) => {
+        try {
+          const event = JSON.parse(messageEvent.data) as unknown;
+          handleRealtimeServerEvent(event, session.model, session.voice);
+        } catch {
+          // Ignore events we do not parse.
+        }
+      };
+
+      localStream.getTracks().forEach((track) => {
+        peerConnection.addTrack(track, localStream);
+      });
+
+      const offer = await peerConnection.createOffer();
+      await peerConnection.setLocalDescription(offer);
+
+      if (!offer.sdp) {
+        throw new Error("Unable to create a WebRTC offer.");
+      }
+
+      const answerSdp = await requestRealtimeAnswer(
+        session.webrtc_url,
+        session.model,
+        session.client_secret,
+        offer.sdp
+      );
+
+      await peerConnection.setRemoteDescription({
+        type: "answer",
+        sdp: answerSdp
+      });
+    } catch (error) {
+      stopRealtimeVoiceSession();
+      setPersonaError(error instanceof Error ? error.message : "Unable to start live voice.");
+    } finally {
+      setIsRealtimeVoiceConnecting(false);
+    }
+  }
+
+  async function handleRealtimeVoiceToggle() {
+    if (isRealtimeVoiceActive || isRealtimeVoiceConnecting) {
+      stopRealtimeVoiceSession();
+      return;
+    }
+
+    await startRealtimeVoiceSession();
+  }
+
   function handlePersonaReset() {
     if (personaRecorderRef.current && personaRecorderRef.current.state !== "inactive") {
       personaRecorderRef.current.stop();
     }
+    stopRealtimeVoiceSession();
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
       window.speechSynthesis.cancel();
     }
@@ -790,7 +846,7 @@ export default function App() {
     }
   }
 
-  const hasUsage = studyPlan?.usage && studyPlan.usage.total_tokens !== null;
+  const hasUsage = studyPlan?.usage?.total_tokens != null;
   const musicStatusLabel = useMemo(() => {
     if (!musicJobStatus) {
       return "queued";
@@ -815,406 +871,81 @@ export default function App() {
         </div>
       </header>
 
-      <section className="view-switcher">
-        <button
-          type="button"
-          className={`view-button ${activeView === "study" ? "active" : ""}`}
-          onClick={() => setActiveView("study")}
-        >
-          Study
-        </button>
-        <button
-          type="button"
-          className={`view-button ${activeView === "music" ? "active" : ""}`}
-          onClick={() => setActiveView("music")}
-        >
-          Music
-        </button>
-        <button
-          type="button"
-          className={`view-button ${activeView === "discussion" ? "active" : ""}`}
-          onClick={() => setActiveView("discussion")}
-        >
-          Discussion
-        </button>
-      </section>
+      <ViewSwitcher activeView={activeView} onChange={setActiveView} />
 
       <main className={`workspace ${activeView === "discussion" ? "workspace-single" : ""}`}>
-        {activeView !== "discussion" ? (
-        <section className="panel control-panel">
-          <div className="panel-heading">
-            <div>
-              <p className="panel-kicker">Inputs</p>
-              <h2>{activeView === "study" ? "Study" : activeView === "music" ? "Music" : "Discussion"}</h2>
-            </div>
-          </div>
-
-          <label className="field">
-            <span>Reference</span>
-            <input
-              value={reference}
-              onChange={(event) => setReference(event.target.value)}
-              placeholder="Luke 21:5-28"
-            />
-          </label>
-
-          <label className="field">
-            <span>Translation</span>
-            <select value={translation} onChange={(event) => setTranslation(event.target.value as TranslationCode)}>
-              <option value="WEB">WEB</option>
-              <option value="KJV">KJV</option>
-            </select>
-          </label>
-
-          {activeView === "study" ? (
-            <>
-              <label className="field">
-                <span>Goals</span>
-                <textarea
-                  rows={3}
-                  value={goals}
-                  onChange={(event) => setGoals(event.target.value)}
-                  placeholder="Optional"
-                />
-              </label>
-
-              <label className="field">
-                <span>Notes</span>
-                <textarea
-                  rows={3}
-                  value={userNotes}
-                  onChange={(event) => setUserNotes(event.target.value)}
-                  placeholder="Optional"
-                />
-              </label>
-
-              <label className="field field-inline">
-                <span>Include question notes</span>
-                <input
-                  type="checkbox"
-                  checked={includeQuestionNotes}
-                  onChange={(event) => setIncludeQuestionNotes(event.target.checked)}
-                />
-              </label>
-
-              <div className="action-row action-row-single">
-                <button
-                  type="button"
-                  className="primary-button"
-                  onClick={handlePassageLookup}
-                  disabled={isLoadingPassage}
-                >
-                  {isLoadingPassage ? "Loading..." : "Fetch passage"}
-                </button>
-                <button
-                  type="button"
-                  className="secondary-button"
-                  onClick={handleStudyPlanGeneration}
-                  disabled={isLoadingStudyPlan}
-                >
-                  {isLoadingStudyPlan ? "Generating..." : "Generate plan"}
-                </button>
-                <button
-                  type="button"
-                  className="secondary-button"
-                  onClick={handlePassageImageGeneration}
-                  disabled={isLoadingPassageImage}
-                >
-                  {isLoadingPassageImage ? "Generating..." : "Generate image"}
-                </button>
-              </div>
-            </>
-          ) : null}
-
-          {activeView === "music" ? (
-            <>
-              <label className="field">
-                <span>Track title</span>
-                <input
-                  value={musicTitle}
-                  onChange={(event) => setMusicTitle(event.target.value)}
-                  placeholder="Optional"
-                />
-              </label>
-
-              <label className="field">
-                <span>Prompt</span>
-                <textarea
-                  rows={4}
-                  value={musicPrompt}
-                  onChange={(event) => setMusicPrompt(event.target.value)}
-                  placeholder="Describe the lyrics or direction for the track"
-                />
-              </label>
-
-              <label className="field">
-                <span>Style</span>
-                <input
-                  value={musicStyle}
-                  onChange={(event) => setMusicStyle(event.target.value)}
-                  placeholder="modern worship, acoustic"
-                />
-              </label>
-
-              <label className="field">
-                <span>Mood</span>
-                <input
-                  value={musicMood}
-                  onChange={(event) => setMusicMood(event.target.value)}
-                  placeholder="hopeful"
-                />
-              </label>
-
-              <div className="action-row action-row-single">
-                <button
-                  type="button"
-                  className="primary-button"
-                  onClick={handleMusicGeneration}
-                  disabled={isGeneratingMusic}
-                >
-                  {isGeneratingMusic ? "Generating..." : "Generate music"}
-                </button>
-              </div>
-            </>
-          ) : null}
-
-        </section>
+        {activeView === "study" ? (
+          <StudyWorkspace
+            reference={reference}
+            translation={translation}
+            goals={goals}
+            userNotes={userNotes}
+            includeQuestionNotes={includeQuestionNotes}
+            passage={passage}
+            studyPlan={studyPlan}
+            passageError={passageError}
+            studyPlanError={studyPlanError}
+            passageImage={passageImage}
+            passageImageError={passageImageError}
+            isLoadingPassage={isLoadingPassage}
+            isLoadingStudyPlan={isLoadingStudyPlan}
+            isLoadingPassageImage={isLoadingPassageImage}
+            hasUsage={hasUsage}
+            onReferenceChange={setReference}
+            onTranslationChange={setTranslation}
+            onGoalsChange={setGoals}
+            onUserNotesChange={setUserNotes}
+            onIncludeQuestionNotesChange={setIncludeQuestionNotes}
+            onFetchPassage={handlePassageLookup}
+            onGeneratePlan={handleStudyPlanGeneration}
+            onGenerateImage={handlePassageImageGeneration}
+          />
         ) : null}
 
-        <section className="results-column">
-          {activeView === "study" ? (
-            <>
-              <article className="panel">
-                <div className="panel-heading">
-                  <div>
-                    <p className="panel-kicker">Passage</p>
-                    <h2>{passage?.normalized_reference ?? "No passage"}</h2>
-                  </div>
-                  {passage && <span className="meta-badge">{passage.translation}</span>}
-                </div>
+        {activeView === "discussion" ? (
+          <DiscussionWorkspace
+            personaModel={personaModel}
+            personaError={personaError}
+            personaMessages={personaMessages}
+            personaInput={personaInput}
+            enableVoiceReply={enableVoiceReply}
+            isSendingPersona={isSendingPersona}
+            isRecordingPersona={isRecordingPersona}
+            isTranscribingPersona={isTranscribingPersona}
+            isRealtimeVoiceConnecting={isRealtimeVoiceConnecting}
+            isRealtimeVoiceActive={isRealtimeVoiceActive}
+            realtimeVoiceStatus={realtimeVoiceStatus}
+            onPersonaInputChange={setPersonaInput}
+            onPersonaSend={handlePersonaSend}
+            onPersonaVoiceToggle={isRecordingPersona ? stopPersonaRecording : () => void startPersonaRecording()}
+            onRealtimeVoiceToggle={handleRealtimeVoiceToggle}
+            onPersonaReset={handlePersonaReset}
+            onEnableVoiceReplyChange={setEnableVoiceReply}
+          />
+        ) : null}
 
-                {passageError ? <p className="error-banner">{passageError}</p> : null}
-
-                {passage ? (
-                  <div className="stack">
-                    <p className="passage-text">{passage.text}</p>
-                    {passage.verses.length > 0 ? (
-                      <div className="verse-list">
-                        {passage.verses.map((verse) => (
-                          <article key={`${verse.book}-${verse.chapter}-${verse.verse}`} className="verse-card">
-                            <p className="verse-label">
-                              {verse.book} {verse.chapter}:{verse.verse}
-                            </p>
-                            <p>{verse.text}</p>
-                          </article>
-                        ))}
-                      </div>
-                    ) : null}
-                  </div>
-                ) : (
-                  <p className="empty-state">Fetch a passage.</p>
-                )}
-              </article>
-
-              <article className="panel">
-                <div className="panel-heading">
-                  <div>
-                    <p className="panel-kicker">Study plan</p>
-                    <h2>{studyPlan?.passage_title ?? "No plan"}</h2>
-                  </div>
-                  {studyPlan && <span className="meta-badge">{studyPlan.model}</span>}
-                </div>
-
-                {studyPlanError ? <p className="error-banner">{studyPlanError}</p> : null}
-
-                {studyPlan ? (
-                  <div className="stack">
-                    <section>
-                      <h3>Context</h3>
-                      <ul className="content-list">
-                        {studyPlan.context_points.map((point) => (
-                          <li key={point}>{point}</li>
-                        ))}
-                      </ul>
-                    </section>
-
-                    <section>
-                      <h3>Questions</h3>
-                      <ol className="content-list ordered-list">
-                        {studyPlan.discussion_questions.map((question, idx) => (
-                          <li key={question}>
-                            {question}
-                            {studyPlan.discussion_question_notes?.[idx] ? (
-                              <p className="question-note">{studyPlan.discussion_question_notes[idx]}</p>
-                            ) : null}
-                          </li>
-                        ))}
-                      </ol>
-                    </section>
-
-                    <section>
-                      <h3>Reflection</h3>
-                      <ul className="content-list">
-                        {studyPlan.reflection_questions.map((question, idx) => (
-                          <li key={question}>
-                            {question}
-                            {studyPlan.reflection_question_notes?.[idx] ? (
-                              <p className="question-note">{studyPlan.reflection_question_notes[idx]}</p>
-                            ) : null}
-                          </li>
-                        ))}
-                      </ul>
-                    </section>
-
-                    {hasUsage ? (
-                      <p className="usage-note">
-                        Tokens: {studyPlan.usage?.prompt_tokens ?? 0} / {studyPlan.usage?.completion_tokens ?? 0} / {" "}
-                        {studyPlan.usage?.total_tokens ?? 0}
-                      </p>
-                    ) : null}
-                  </div>
-                ) : (
-                  <p className="empty-state">Generate a plan.</p>
-                )}
-              </article>
-
-              <article className="panel">
-                <div className="panel-heading">
-                  <div>
-                    <p className="panel-kicker">Image</p>
-                    <h2>{passageImage ? "Ready" : "No image"}</h2>
-                  </div>
-                  {passageImage && <span className="meta-badge">{passageImage.style}</span>}
-                </div>
-
-                {passageImageError ? <p className="error-banner">{passageImageError}</p> : null}
-
-                {passageImage ? (
-                  <div className="stack">
-                    <img className="image-preview" src={passageImage.image_b64_or_url} alt={passageImage.alt_text} />
-                    <p className="prompt-note">{passageImage.alt_text}</p>
-                  </div>
-                ) : (
-                  <p className="empty-state">Generate an image.</p>
-                )}
-              </article>
-            </>
-          ) : null}
-
-          {activeView === "discussion" ? (
-            <article className="panel">
-              <div className="panel-heading">
-                <div>
-                  <p className="panel-kicker">Discussion</p>
-                  <h2>Mentor chat</h2>
-                </div>
-                {personaModel ? <span className="meta-badge">{personaModel}</span> : null}
-              </div>
-
-              {personaError ? <p className="error-banner">{personaError}</p> : null}
-
-              <div className="stack">
-                {personaMessages.length > 0 ? (
-                  <div className="chat-thread">
-                    {personaMessages.map((message, index) => (
-                      <article key={`${message.role}-${index}`} className={`chat-bubble ${message.role}`}>
-                        <p className="summary-label">{message.role === "user" ? "You" : "Mentor"}</p>
-                        <p>{message.content}</p>
-                      </article>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="empty-state">Start the chat.</p>
-                )}
-
-                <label className="field">
-                  <span>Message</span>
-                  <textarea
-                    rows={3}
-                    value={personaInput}
-                    onChange={(event) => setPersonaInput(event.target.value)}
-                    placeholder="Ask a question"
-                  />
-                </label>
-
-                <div className="mini-action-row">
-                  <button
-                    type="button"
-                    className="secondary-button"
-                    onClick={handlePersonaSend}
-                    disabled={isSendingPersona || isRecordingPersona || isTranscribingPersona}
-                  >
-                    {isSendingPersona ? "Sending..." : "Send"}
-                  </button>
-                  <button
-                    type="button"
-                    className="secondary-button"
-                    onClick={isRecordingPersona ? stopPersonaRecording : () => void startPersonaRecording()}
-                    disabled={isSendingPersona || isTranscribingPersona}
-                  >
-                    {isRecordingPersona ? "Stop recording" : "Voice input"}
-                  </button>
-                  <button type="button" className="secondary-button" onClick={handlePersonaReset}>
-                    Reset
-                  </button>
-                </div>
-
-                <label className="field field-inline">
-                  <span>Voice reply</span>
-                  <input
-                    type="checkbox"
-                    checked={enableVoiceReply}
-                    onChange={(event) => setEnableVoiceReply(event.target.checked)}
-                  />
-                </label>
-
-                {isRecordingPersona ? <p className="muted-text">Recording...</p> : null}
-                {isTranscribingPersona ? <p className="muted-text">Transcribing audio...</p> : null}
-              </div>
-            </article>
-          ) : null}
-
-          {activeView === "music" ? (
-            <article className="panel">
-              <div className="panel-heading">
-                <div>
-                  <p className="panel-kicker">Music</p>
-                  <h2>{musicResult?.title ?? "No track"}</h2>
-                </div>
-                {musicResult ? <span className="meta-badge">{musicJob?.provider ?? musicResult.provider}</span> : null}
-              </div>
-
-              {musicError ? <p className="error-banner">{musicError}</p> : null}
-
-              {musicResult ? (
-                <div className="stack">
-                  <p className="status-inline">
-                    Status: <span className={`job-status ${musicStatusLabel}`}>{musicStatusLabel}</span>
-                  </p>
-                  <p className="muted-text">Provider: {musicJob?.provider ?? musicResult.provider}</p>
-
-                  <section>
-                    <h3>Prompt</h3>
-                    <p className="passage-text">{musicResult.prompt}</p>
-                  </section>
-
-                  {musicJob?.error ? <p className="error-banner">{musicJob.error}</p> : null}
-
-                  {musicJob?.audio_url ? (
-                    <section>
-                      <h3>Audio</h3>
-                      <audio controls src={musicJob.audio_url} />
-                    </section>
-                  ) : (
-                    <p className="empty-state">Audio pending.</p>
-                  )}
-                </div>
-              ) : (
-                <p className="empty-state">Generate a track.</p>
-              )}
-            </article>
-          ) : null}
-        </section>
+        {activeView === "music" ? (
+          <MusicWorkspace
+            reference={reference}
+            translation={translation}
+            musicTitle={musicTitle}
+            musicPrompt={musicPrompt}
+            musicStyle={musicStyle}
+            musicMood={musicMood}
+            musicResult={musicResult}
+            musicJob={musicJob}
+            musicError={musicError}
+            musicStatusLabel={musicStatusLabel}
+            isGeneratingMusic={isGeneratingMusic}
+            onReferenceChange={setReference}
+            onTranslationChange={setTranslation}
+            onMusicTitleChange={setMusicTitle}
+            onMusicPromptChange={setMusicPrompt}
+            onMusicStyleChange={setMusicStyle}
+            onMusicMoodChange={setMusicMood}
+            onGenerateMusic={handleMusicGeneration}
+          />
+        ) : null}
       </main>
     </div>
   );

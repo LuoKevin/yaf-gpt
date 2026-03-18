@@ -3,7 +3,11 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Optional
 
 from .domain import GenerateVoiceCommand, VoiceGenerationResult, resolve_generate_voice_command
-from .infrastructure import OpenAIVoiceGenerationGateway
+from .providers import (
+    OpenAIVoiceGenerationProvider,
+    build_voice_generation_provider_from_env,
+    mime_type_for_format,
+)
 
 if TYPE_CHECKING:
     from openai import OpenAI
@@ -16,17 +20,22 @@ class VoiceGenerationService:
         api_key: Optional[str] = None,
         client: Optional["OpenAI"] = None,
         model: Optional[str] = None,
-        gateway: Optional[OpenAIVoiceGenerationGateway] = None,
+        provider: Optional[object] = None,
     ) -> None:
-        self._gateway = gateway or OpenAIVoiceGenerationGateway(
-            api_key=api_key,
-            client=client,
-            model=model,
-        )
+        if provider is not None:
+            self._provider = provider
+        elif client is not None or api_key is not None or model is not None:
+            self._provider = OpenAIVoiceGenerationProvider(
+                api_key=api_key,
+                client=client,
+                model=model,
+            )
+        else:
+            self._provider = build_voice_generation_provider_from_env()
 
     @property
     def model_name(self) -> str:
-        return self._gateway.model_name
+        return self._provider.model_name
 
     def generate_audio(
         self,
@@ -45,9 +54,9 @@ class VoiceGenerationService:
                 response_format=response_format,
                 speed=speed,
             ),
-            model_name=self._gateway.model_name,
+            model_name=self._provider.model_name,
         )
-        audio_bytes = self._gateway.generate_audio(
+        audio_bytes = self._provider.generate_audio(
             input_text=resolved.input_text,
             voice=resolved.voice,
             instructions=resolved.instructions,
@@ -56,8 +65,8 @@ class VoiceGenerationService:
         )
         return VoiceGenerationResult(
             audio_bytes=audio_bytes,
-            mime_type=self._gateway.mime_type_for_format(resolved.response_format),
-            model=self._gateway.model_name,
+            mime_type=mime_type_for_format(resolved.response_format),
+            model=self._provider.model_name,
             voice=resolved.voice,
             response_format=resolved.response_format,
         )

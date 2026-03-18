@@ -4,12 +4,16 @@ import base64
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
+from ...services.bible_lookup import InvalidReferenceError, PassageNotFoundError
+from ...services.voice_chat import VoiceChatService
 from ...services.voice_generation import VoiceGenerationService
 from ...services.voice_transcription import VoiceTranscriptionService
 from ..schemas import (
     APIErrorResponse,
     VoiceGenerationRequest,
     VoiceGenerationResponse,
+    VoiceRealtimeSessionRequest,
+    VoiceRealtimeSessionResponse,
     VoiceTranscriptionRequest,
     VoiceTranscriptionResponse,
 )
@@ -23,6 +27,10 @@ def get_voice_transcription_service() -> VoiceTranscriptionService:
 
 def get_voice_generation_service() -> VoiceGenerationService:
     return VoiceGenerationService()
+
+
+def get_voice_realtime_session_service() -> VoiceChatService:
+    return VoiceChatService()
 
 
 @router.post(
@@ -47,6 +55,42 @@ def transcribe_voice(
             transcript=transcript,
             model=service.model_name,
         )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+
+
+@router.post(
+    "/realtime/session",
+    response_model=VoiceRealtimeSessionResponse,
+    responses={
+        400: {"model": APIErrorResponse},
+        404: {"model": APIErrorResponse},
+        502: {"model": APIErrorResponse},
+    },
+)
+def create_realtime_voice_session(
+    payload: VoiceRealtimeSessionRequest,
+    service: VoiceChatService = Depends(get_voice_realtime_session_service),
+) -> VoiceRealtimeSessionResponse:
+    try:
+        session = service.create_realtime_session(
+            reference_context=payload.reference_context,
+            translation=payload.translation,
+            voice=payload.voice,
+        )
+        return VoiceRealtimeSessionResponse(
+            client_secret=session.client_secret,
+            expires_at=session.expires_at,
+            model=session.model,
+            voice=session.voice,  # type: ignore[arg-type]
+            webrtc_url=session.webrtc_url,
+        )
+    except InvalidReferenceError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except PassageNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except RuntimeError as exc:

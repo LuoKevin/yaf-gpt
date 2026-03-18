@@ -4,10 +4,7 @@ import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
-from .domain import (
-    DEFAULT_VOICE_GENERATION_MODEL,
-    SUPPORTED_RESPONSE_FORMATS,
-)
+from .domain import DEFAULT_VOICE_GENERATION_MODEL, SUPPORTED_RESPONSE_FORMATS
 
 if TYPE_CHECKING:
     from openai import OpenAI
@@ -51,7 +48,11 @@ def _extract_audio_bytes(response: object) -> bytes:
     raise RuntimeError("Voice generation provider returned no audio bytes.")
 
 
-class OpenAIVoiceGenerationGateway:
+def mime_type_for_format(response_format: str) -> str:
+    return SUPPORTED_RESPONSE_FORMATS[response_format]
+
+
+class OpenAIVoiceGenerationProvider:
     def __init__(
         self,
         *,
@@ -74,15 +75,7 @@ class OpenAIVoiceGenerationGateway:
         else:
             self._client = client
 
-        self._model = model or os.getenv("VOICE_GENERATION_MODEL") or DEFAULT_VOICE_GENERATION_MODEL
-
-    @property
-    def model_name(self) -> str:
-        return self._model
-
-    @staticmethod
-    def mime_type_for_format(response_format: str) -> str:
-        return SUPPORTED_RESPONSE_FORMATS[response_format]
+        self.model_name = model or os.getenv("VOICE_GENERATION_MODEL") or DEFAULT_VOICE_GENERATION_MODEL
 
     def generate_audio(
         self,
@@ -94,7 +87,7 @@ class OpenAIVoiceGenerationGateway:
         speed: float,
     ) -> bytes:
         params = {
-            "model": self._model,
+            "model": self.model_name,
             "voice": voice,
             "input": input_text,
             "response_format": response_format,
@@ -109,3 +102,33 @@ class OpenAIVoiceGenerationGateway:
             raise RuntimeError(str(exc)) from exc
 
         return _extract_audio_bytes(response)
+
+
+class SelfHostedVoiceGenerationProvider:
+    def __init__(self, *, base_url: Optional[str] = None, model: Optional[str] = None) -> None:
+        _load_backend_env()
+        self._base_url = (base_url or os.getenv("SELF_HOSTED_VOICE_GENERATION_URL") or "").strip()
+        self.model_name = model or os.getenv("VOICE_GENERATION_MODEL") or "self-hosted-voice"
+        if not self._base_url:
+            raise RuntimeError("SELF_HOSTED_VOICE_GENERATION_URL is not set")
+
+    def generate_audio(
+        self,
+        *,
+        input_text: str,
+        voice: str,
+        instructions: str | None,
+        response_format: str,
+        speed: float,
+    ) -> bytes:
+        raise RuntimeError("Self-hosted voice generation provider is not implemented yet.")
+
+
+def build_voice_generation_provider_from_env() -> object:
+    _load_backend_env()
+    provider = (os.getenv("VOICE_GENERATION_PROVIDER") or "openai").strip().lower()
+    if provider == "openai":
+        return OpenAIVoiceGenerationProvider()
+    if provider in {"self_hosted", "self-hosted"}:
+        return SelfHostedVoiceGenerationProvider()
+    raise RuntimeError(f"Unsupported VOICE_GENERATION_PROVIDER '{provider}'.")

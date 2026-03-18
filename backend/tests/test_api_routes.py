@@ -10,7 +10,11 @@ from backend.app.routes.chat import get_persona_chat_service
 from backend.app.routes.image import get_passage_image_service
 from backend.app.routes.music import get_music_generation_service
 from backend.app.routes.study_plan import get_study_plan_service
-from backend.app.routes.voice import get_voice_generation_service, get_voice_transcription_service
+from backend.app.routes.voice import (
+    get_voice_generation_service,
+    get_voice_realtime_session_service,
+    get_voice_transcription_service,
+)
 from backend.app.schemas import (
     MusicGenerateResponse,
     MusicJobResponse,
@@ -140,6 +144,33 @@ class _VoiceGenerationServiceStub:
         )()
 
 
+class _VoiceRealtimeSessionServiceStub:
+    def create_realtime_session(
+        self,
+        *,
+        reference_context: str | None = None,
+        translation: str = "WEB",
+        voice: str | None = None,
+    ):
+        if reference_context == "Bad 1:1":
+            raise InvalidReferenceError("invalid")
+        if reference_context == "Missing 1:1":
+            raise PassageNotFoundError("not found")
+        if reference_context == "provider":
+            raise RuntimeError("provider down")
+        return type(
+            "VoiceRealtimeSessionStub",
+            (),
+            {
+                "client_secret": "ephemeral-secret",
+                "expires_at": 1_700_000_000,
+                "model": "gpt-realtime-mini",
+                "voice": voice or "cedar",
+                "webrtc_url": "https://api.openai.com/v1/realtime",
+            },
+        )()
+
+
 class _MusicGenerationServiceStub:
     def generate_music(self, payload):
         if payload.prompt == "bad":
@@ -178,6 +209,7 @@ class APIRouteTests(unittest.TestCase):
         app.dependency_overrides[get_persona_chat_service] = lambda: _PersonaChatServiceStub()
         app.dependency_overrides[get_voice_transcription_service] = lambda: _VoiceTranscriptionServiceStub()
         app.dependency_overrides[get_voice_generation_service] = lambda: _VoiceGenerationServiceStub()
+        app.dependency_overrides[get_voice_realtime_session_service] = lambda: _VoiceRealtimeSessionServiceStub()
         app.dependency_overrides[get_music_generation_service] = lambda: _MusicGenerationServiceStub()
         self.client = TestClient(app)
 
@@ -337,6 +369,44 @@ class APIRouteTests(unittest.TestCase):
             "/api/voice/transcribe",
             json={
                 "audio_base64": "provider",
+            },
+        )
+        self.assertEqual(response.status_code, 502)
+
+    def test_voice_realtime_session_success(self) -> None:
+        response = self.client.post(
+            "/api/voice/realtime/session",
+            json={
+                "reference_context": "Luke 21:36",
+                "translation": "WEB",
+                "voice": "marin",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body["client_secret"], "ephemeral-secret")
+        self.assertEqual(body["model"], "gpt-realtime-mini")
+        self.assertEqual(body["voice"], "marin")
+        self.assertEqual(body["webrtc_url"], "https://api.openai.com/v1/realtime")
+
+    def test_voice_realtime_session_invalid_reference_maps_to_400(self) -> None:
+        response = self.client.post(
+            "/api/voice/realtime/session",
+            json={
+                "reference_context": "Bad 1:1",
+                "translation": "WEB",
+                "voice": "cedar",
+            },
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_voice_realtime_session_provider_error_maps_to_502(self) -> None:
+        response = self.client.post(
+            "/api/voice/realtime/session",
+            json={
+                "reference_context": "provider",
+                "translation": "WEB",
+                "voice": "cedar",
             },
         )
         self.assertEqual(response.status_code, 502)

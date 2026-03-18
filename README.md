@@ -31,6 +31,10 @@ streamlit run backend/streamlit_app.py
 docker compose up --build
 ```
 
+Frontend: `http://localhost:5173`
+Backend API: `http://localhost:8000`
+Streamlit: `http://localhost:8501`
+
 ## Voice Worker (Scaffold)
 
 ```bash

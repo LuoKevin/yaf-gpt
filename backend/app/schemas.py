@@ -23,6 +23,18 @@ VoiceGenerationVoice = Literal[
     "verse",
 ]
 VoiceGenerationFormat = Literal["mp3", "opus", "aac", "flac", "wav", "pcm"]
+RealtimeVoice = Literal[
+    "alloy",
+    "ash",
+    "ballad",
+    "cedar",
+    "coral",
+    "echo",
+    "marin",
+    "sage",
+    "shimmer",
+    "verse",
+]
 
 
 class APIErrorResponse(BaseModel):
@@ -210,6 +222,23 @@ class VoiceGenerationResponse(BaseModel):
     model: str
     voice: VoiceGenerationVoice
     response_format: VoiceGenerationFormat
+
+
+class VoiceRealtimeSessionRequest(BaseModel):
+    reference_context: Optional[str] = Field(
+        default=None,
+        description="Optional Bible reference used to ground the live voice conversation.",
+    )
+    translation: TranslationCode = Field(default="WEB")
+    voice: RealtimeVoice = Field(default="cedar")
+
+
+class VoiceRealtimeSessionResponse(BaseModel):
+    client_secret: str
+    expires_at: int
+    model: str
+    voice: RealtimeVoice
+    webrtc_url: str
 
 
 class HymnSection(BaseModel):
