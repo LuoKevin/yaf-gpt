@@ -5,7 +5,7 @@ import unittest
 import zipfile
 from pathlib import Path
 
-from backend.services.study_docx_structure import (
+from backend.services.study_plan import (
     LukeStructureExample,
     LukeStructureRetriever,
     parse_luke_reference_from_filename,

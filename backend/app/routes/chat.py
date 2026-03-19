@@ -5,12 +5,12 @@ import json
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 
-from ...services.bible_lookup import (
+from ...services.study_plan.bible_lookup import (
     InvalidReferenceError,
     PassageNotFoundError,
     PassageProviderError,
 )
-from ...services.persona_chat_service import (
+from ...services.voice_chat import (
     PersonaChatProviderError,
     PersonaChatService,
     PersonaChatValidationError,

@@ -4,10 +4,8 @@ import base64
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from ...services.bible_lookup import InvalidReferenceError, PassageNotFoundError
-from ...services.voice_chat import VoiceChatService
-from ...services.voice_generation import VoiceGenerationService
-from ...services.voice_transcription import VoiceTranscriptionService
+from ...services.study_plan.bible_lookup import InvalidReferenceError, PassageNotFoundError
+from ...services.voice_chat import VoiceChatService, VoiceGenerationService, VoiceTranscriptionService
 from ..schemas import (
     APIErrorResponse,
     VoiceGenerationRequest,

@@ -14,7 +14,7 @@ from backend.llm import (
 )
 from backend.llm.system_prompts import YOUNG_ADULT_COMMUNICATION
 
-from .bible_lookup import BibleAPIProvider, BibleProvider, PassageData
+from ..study_plan.bible_lookup import BibleAPIProvider, BibleProvider, PassageData
 
 DEFAULT_PERSONA_MODEL = "gpt-4o-mini"
 

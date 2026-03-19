@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from backend.services.bible_lookup import PassageData, PassageVerse
+from backend.services.study_plan.bible_lookup import PassageData, PassageVerse
 from backend.services.voice_chat import VoiceChatService
 
 

@@ -20,7 +20,7 @@ def _load_backend_env() -> None:
         from dotenv import load_dotenv
     except ModuleNotFoundError:
         return
-    env_path = Path(__file__).resolve().parents[2] / ".env"
+    env_path = Path(__file__).resolve().parents[3] / ".env"
     load_dotenv(env_path)
     _ENV_LOADED = True
 

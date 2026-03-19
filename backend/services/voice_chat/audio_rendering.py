@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 from typing import Optional
 
-from .voice_generation import VoiceGenerationService, VoiceGenerationResult
+from .generation import VoiceGenerationService, VoiceGenerationResult
 
 DEFAULT_VOICE_AUDIO_RENDERER = "backend_tts"
 
@@ -20,7 +20,7 @@ def _load_backend_env() -> None:
         from dotenv import load_dotenv
     except ModuleNotFoundError:
         return
-    env_path = Path(__file__).resolve().parents[1] / ".env"
+    env_path = Path(__file__).resolve().parents[2] / ".env"
     load_dotenv(env_path)
     _ENV_LOADED = True
 

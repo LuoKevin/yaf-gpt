@@ -20,8 +20,8 @@ from .bible_lookup import (
     InvalidReferenceError,
     PassageData,
 )
-from .prompt_builder import build_repair_messages, build_study_plan_messages
-from .study_docx_structure import LukeStructureContext, LukeStructureRetriever
+from .docx_structure import LukeStructureContext, LukeStructureRetriever
+from .prompts import build_repair_messages, build_study_plan_messages
 from .style_guide import load_luke_style_guide
 
 DEFAULT_STUDY_PLAN_MODEL = "gpt-4o-mini"

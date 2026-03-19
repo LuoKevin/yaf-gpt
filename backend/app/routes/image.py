@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from ...services.bible_lookup import (
+from ...services.study_plan.bible_lookup import (
     InvalidReferenceError,
     PassageNotFoundError,
     PassageProviderError,
 )
-from ...services.passage_image_service import (
+from ...services.study_plan.passage_image_service import (
     PassageImageProviderError,
     PassageImageService,
 )

@@ -11,12 +11,12 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from backend.app.schemas import StudyPlanRequest  # noqa: E402
-from backend.services.bible_lookup import (  # noqa: E402
+from backend.services.study_plan.bible_lookup import (  # noqa: E402
     InvalidReferenceError,
     PassageNotFoundError,
     PassageProviderError,
 )
-from backend.services.study_plan_service import (  # noqa: E402
+from backend.services.study_plan import (  # noqa: E402
     StudyPlanProviderError,
     StudyPlanService,
     StudyPlanValidationError,

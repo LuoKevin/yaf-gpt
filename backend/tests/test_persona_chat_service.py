@@ -4,8 +4,8 @@ import unittest
 
 from backend.app.schemas import PersonaChatMessage, PersonaChatRequest
 from backend.llm.provider import ChatChunk, ChatResponse, ProviderError
-from backend.services.bible_lookup import PassageData, PassageVerse
-from backend.services.persona_chat_service import (
+from backend.services.study_plan.bible_lookup import PassageData, PassageVerse
+from backend.services.voice_chat import (
     PersonaChatProviderError,
     PersonaChatService,
     PersonaChatValidationError,

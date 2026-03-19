@@ -24,15 +24,15 @@ from backend.app.schemas import (
     UsageMetrics,
     VoiceGenerationResponse,
 )
-from backend.services.bible_lookup import (
+from backend.services.study_plan.bible_lookup import (
     InvalidReferenceError,
     PassageData,
     PassageNotFoundError,
     PassageVerse,
 )
-from backend.services.persona_chat_service import PersonaChatProviderError, PersonaChatValidationError
-from backend.services.study_plan_service import StudyPlanValidationError
-from backend.services.voice_transcription import VoiceTranscriptionService
+from backend.services.voice_chat import PersonaChatProviderError, PersonaChatValidationError
+from backend.services.study_plan import StudyPlanValidationError
+from backend.services.voice_chat import VoiceTranscriptionService
 
 
 class _BibleProviderStub:

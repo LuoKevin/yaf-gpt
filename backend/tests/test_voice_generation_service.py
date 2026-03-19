@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from backend.services.voice_generation import VoiceGenerationService
+from backend.services.voice_chat.generation import VoiceGenerationService
 
 
 class _FakeSpeechResponse:

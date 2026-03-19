@@ -4,8 +4,8 @@ import unittest
 
 from backend.app.schemas import PassageImageRequest
 from backend.media import ImageGenerationResult
-from backend.services.bible_lookup import PassageData, PassageVerse
-from backend.services.passage_image_service import PassageImageService
+from backend.services.study_plan.bible_lookup import PassageData, PassageVerse
+from backend.services.study_plan.passage_image_service import PassageImageService
 
 
 class _FakeBibleProvider:

@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import unittest
 
-from backend.services.voice_audio_rendering import (
+from backend.services.voice_chat import (
     BackendTTSVoiceAudioRenderer,
     NativeRealtimeVoiceAudioRenderer,
     VoiceAudioRenderingService,
 )
-from backend.services.voice_generation.domain import VoiceGenerationResult
+from backend.services.voice_chat.generation.domain import VoiceGenerationResult
 
 
 class _VoiceGenerationServiceStub:

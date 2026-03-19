@@ -57,7 +57,6 @@ def _normalize_reference(reference: str) -> str:
 
 
 def _validate_reference_shape(reference: str) -> None:
-    # We intentionally scope MVP input to verse-level references/ranges.
     if not re.search(r"\d+:\d+", reference):
         raise InvalidReferenceError(
             "Reference must include chapter and verse, for example 'Luke 21:5-28'."
@@ -156,4 +155,3 @@ class BibleAPIProvider:
             raise PassageProviderError(str(exc.reason)) from exc
         except json.JSONDecodeError as exc:
             raise PassageProviderError("Invalid JSON response from Bible provider.") from exc
-

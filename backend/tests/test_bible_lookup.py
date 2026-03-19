@@ -4,7 +4,7 @@ import json
 import unittest
 from unittest.mock import patch
 
-from backend.services.bible_lookup import BibleAPIProvider, InvalidReferenceError
+from backend.services.study_plan.bible_lookup import BibleAPIProvider, InvalidReferenceError
 
 
 class _FakeHTTPResponse:
@@ -27,7 +27,7 @@ class BibleLookupTests(unittest.TestCase):
         with self.assertRaises(InvalidReferenceError):
             provider.get_passage("Luke 21")
 
-    @patch("backend.services.bible_lookup.urlopen")
+    @patch("backend.services.study_plan.bible_lookup.urlopen")
     def test_parses_valid_provider_payload(self, mock_urlopen) -> None:
         mock_urlopen.return_value = _FakeHTTPResponse(
             {
@@ -46,7 +46,7 @@ class BibleLookupTests(unittest.TestCase):
         self.assertEqual(len(result.verses), 2)
         self.assertTrue(result.text)
 
-    @patch("backend.services.bible_lookup.urlopen")
+    @patch("backend.services.study_plan.bible_lookup.urlopen")
     def test_rejects_oversized_ranges(self, mock_urlopen) -> None:
         verses = [
             {"book_name": "Psalm", "chapter": 119, "verse": i, "text": f"Verse {i}"}
@@ -63,4 +63,3 @@ class BibleLookupTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

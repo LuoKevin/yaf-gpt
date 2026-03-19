@@ -4,9 +4,13 @@ import unittest
 
 from backend.app.schemas import StudyPlanRequest
 from backend.llm.provider import ChatResponse
-from backend.services.bible_lookup import PassageData, PassageVerse
-from backend.services.study_docx_structure import LukeStructureContext, LukeStructureExample
-from backend.services.study_plan_service import StudyPlanService, StudyPlanValidationError
+from backend.services.study_plan.bible_lookup import PassageData, PassageVerse
+from backend.services.study_plan import (
+    LukeStructureContext,
+    LukeStructureExample,
+    StudyPlanService,
+    StudyPlanValidationError,
+)
 
 
 def _valid_output_json(*, include_question_notes: bool = False) -> str:
@@ -162,7 +166,7 @@ class StudyPlanServiceTests(unittest.TestCase):
             model="gpt-4o-mini",
         )
 
-        with self.assertLogs("backend.services.study_plan_service", level="WARNING") as logs:
+        with self.assertLogs("backend.services.study_plan.service", level="WARNING") as logs:
             response = service.generate_study_plan(
                 StudyPlanRequest(reference="Luke 21:5-28", translation="WEB")
             )

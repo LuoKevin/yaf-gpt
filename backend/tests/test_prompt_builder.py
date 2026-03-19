@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import unittest
 
-from backend.services.prompt_builder import build_study_plan_messages
-from backend.services.study_docx_structure import LukeStructureContext, LukeStructureExample
-from backend.services.style_guide import LukeStyleGuide
+from backend.services.study_plan import (
+    LukeStructureContext,
+    LukeStructureExample,
+    LukeStyleGuide,
+    build_study_plan_messages,
+)
 
 
 class PromptBuilderTests(unittest.TestCase):

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from backend.services.voice_transcription import VoiceTranscriptionService
+from backend.services.voice_chat.transcription import VoiceTranscriptionService
 
 
 class _FakeTranscriptionResponse:

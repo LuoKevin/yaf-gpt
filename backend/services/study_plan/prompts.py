@@ -6,7 +6,7 @@ from backend.app.schemas import StudyPlanLLMOutput
 from backend.llm import ChatMessage
 from backend.llm.system_prompts import CALVINIST_BIBLE_STUDY, YOUNG_ADULT_COMMUNICATION
 
-from .study_docx_structure import LukeStructureContext
+from .docx_structure import LukeStructureContext
 from .style_guide import LukeStyleGuide
 
 DEFAULT_QUESTION_COUNT = 6

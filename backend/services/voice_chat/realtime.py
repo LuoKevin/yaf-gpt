@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
-from .bible_lookup import BibleAPIProvider, BibleProvider
+from ..study_plan.bible_lookup import BibleAPIProvider, BibleProvider
 
 if TYPE_CHECKING:
     from openai import OpenAI
@@ -48,7 +48,7 @@ def _load_backend_env() -> None:
         from dotenv import load_dotenv
     except ModuleNotFoundError:
         return
-    env_path = Path(__file__).resolve().parents[1] / ".env"
+    env_path = Path(__file__).resolve().parents[2] / ".env"
     load_dotenv(env_path)
     _ENV_LOADED = True
 
