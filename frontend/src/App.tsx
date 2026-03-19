@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { DiscussionWorkspace } from "./components/DiscussionWorkspace";
 import { MusicWorkspace } from "./components/MusicWorkspace";
 import { StudyWorkspace } from "./components/StudyWorkspace";
+import { TextChatWorkspace } from "./components/TextChatWorkspace";
 import { ViewSwitcher } from "./components/ViewSwitcher";
 import {
   blobToDataUrl,
@@ -29,6 +30,7 @@ import type {
 
 export default function App() {
   const [activeView, setActiveView] = useState<ViewMode>("study");
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   const [reference, setReference] = useState("Luke 21:5-28");
   const [translation, setTranslation] = useState<TranslationCode>("WEB");
@@ -867,100 +869,151 @@ export default function App() {
     }
     return musicJobStatus;
   }, [musicJobStatus]);
+  const activeViewLabel = useMemo(() => {
+    if (activeView === "chat") {
+      return "Text Chat";
+    }
+    if (activeView === "study") {
+      return "Study Guide";
+    }
+    if (activeView === "discussion") {
+      return "Mentor Chat";
+    }
+    return "Music Draft";
+  }, [activeView]);
+  const activeViewCopy = useMemo(() => {
+    if (activeView === "chat") {
+      return "Use a simpler ChatGPT-style text thread for quick questions, grounded by the same passage context and mentor behavior as the richer discussion view.";
+    }
+    if (activeView === "study") {
+      return "Shape a sharper small-group guide with grounded context, discussion flow, and a companion passage image in one place.";
+    }
+    if (activeView === "discussion") {
+      return "Keep the mentor conversation focused, with typed chat, voice input, and live voice sessions built around the same passage context.";
+    }
+    return "Turn a passage direction into a more coherent music brief, then follow the job through to generated audio.";
+  }, [activeView]);
 
   return (
-    <div className="shell">
-      <div className="background-orb background-orb-left" />
-      <div className="background-orb background-orb-right" />
+    <div className={`shell ${isSidebarCollapsed ? "shell-collapsed" : ""}`}>
+      <ViewSwitcher
+        activeView={activeView}
+        isCollapsed={isSidebarCollapsed}
+        onChange={setActiveView}
+        onToggleCollapse={() => setIsSidebarCollapsed((current) => !current)}
+      />
 
-      <header className="hero">
-        <div className="hero-copy">
-          <p className="eyebrow">yaf-gpt</p>
-          <h1>Study Workspace</h1>
-        </div>
+      <div className="shell-content">
+        <header className="hero">
+          <div className="hero-copy">
+            <p className="eyebrow">Workspace</p>
+            <h1>Bible Study Workspace</h1>
+            <p className="hero-text">{activeViewCopy}</p>
+            <div className="hero-meta">
+              <span className="chip">{activeViewLabel}</span>
+              <span className="chip">{reference.trim() || "Set a passage"}</span>
+              <span className="chip">{translation}</span>
+            </div>
+          </div>
 
-        <div className={`status-pill ${healthStatus}`}>
-          <span className="status-dot" />
-          <span>{healthStatus.toUpperCase()}</span>
-        </div>
-      </header>
+          <div className={`status-pill ${healthStatus}`}>
+            <span className="status-dot" />
+            <span>{healthStatus.toUpperCase()}</span>
+          </div>
+        </header>
 
-      <ViewSwitcher activeView={activeView} onChange={setActiveView} />
+        <main
+          className={`workspace ${activeView === "discussion" || activeView === "chat" ? "workspace-single" : ""}`}
+        >
+          {activeView === "chat" ? (
+            <TextChatWorkspace
+              reference={reference}
+              translation={translation}
+              personaModel={personaModel}
+              personaError={personaError}
+              personaMessages={personaMessages}
+              personaInput={personaInput}
+              isSendingPersona={isSendingPersona}
+              onPersonaInputChange={setPersonaInput}
+              onPersonaSend={handlePersonaSend}
+              onPersonaReset={handlePersonaReset}
+            />
+          ) : null}
 
-      <main className={`workspace ${activeView === "discussion" ? "workspace-single" : ""}`}>
-        {activeView === "study" ? (
-          <StudyWorkspace
-            reference={reference}
-            translation={translation}
-            goals={goals}
-            userNotes={userNotes}
-            includeQuestionNotes={includeQuestionNotes}
-            passage={passage}
-            studyPlan={studyPlan}
-            passageError={passageError}
-            studyPlanError={studyPlanError}
-            passageImage={passageImage}
-            passageImageError={passageImageError}
-            isLoadingPassage={isLoadingPassage}
-            isLoadingStudyPlan={isLoadingStudyPlan}
-            isLoadingPassageImage={isLoadingPassageImage}
-            hasUsage={hasUsage}
-            onReferenceChange={setReference}
-            onTranslationChange={setTranslation}
-            onGoalsChange={setGoals}
-            onUserNotesChange={setUserNotes}
-            onIncludeQuestionNotesChange={setIncludeQuestionNotes}
-            onFetchPassage={handlePassageLookup}
-            onGeneratePlan={handleStudyPlanGeneration}
-            onGenerateImage={handlePassageImageGeneration}
-          />
-        ) : null}
+          {activeView === "study" ? (
+            <StudyWorkspace
+              reference={reference}
+              translation={translation}
+              goals={goals}
+              userNotes={userNotes}
+              includeQuestionNotes={includeQuestionNotes}
+              passage={passage}
+              studyPlan={studyPlan}
+              passageError={passageError}
+              studyPlanError={studyPlanError}
+              passageImage={passageImage}
+              passageImageError={passageImageError}
+              isLoadingPassage={isLoadingPassage}
+              isLoadingStudyPlan={isLoadingStudyPlan}
+              isLoadingPassageImage={isLoadingPassageImage}
+              hasUsage={hasUsage}
+              onReferenceChange={setReference}
+              onTranslationChange={setTranslation}
+              onGoalsChange={setGoals}
+              onUserNotesChange={setUserNotes}
+              onIncludeQuestionNotesChange={setIncludeQuestionNotes}
+              onFetchPassage={handlePassageLookup}
+              onGeneratePlan={handleStudyPlanGeneration}
+              onGenerateImage={handlePassageImageGeneration}
+            />
+          ) : null}
 
-        {activeView === "discussion" ? (
-          <DiscussionWorkspace
-            personaModel={personaModel}
-            personaError={personaError}
-            personaMessages={personaMessages}
-            personaInput={personaInput}
-            enableVoiceReply={enableVoiceReply}
-            isSendingPersona={isSendingPersona}
-            isRecordingPersona={isRecordingPersona}
-            isTranscribingPersona={isTranscribingPersona}
-            isRealtimeVoiceConnecting={isRealtimeVoiceConnecting}
-            isRealtimeVoiceActive={isRealtimeVoiceActive}
-            realtimeVoiceStatus={realtimeVoiceStatus}
-            onPersonaInputChange={setPersonaInput}
-            onPersonaSend={handlePersonaSend}
-            onPersonaVoiceToggle={isRecordingPersona ? stopPersonaRecording : () => void startPersonaRecording()}
-            onRealtimeVoiceToggle={handleRealtimeVoiceToggle}
-            onPersonaReset={handlePersonaReset}
-            onEnableVoiceReplyChange={setEnableVoiceReply}
-          />
-        ) : null}
+          {activeView === "discussion" ? (
+            <DiscussionWorkspace
+              personaModel={personaModel}
+              personaError={personaError}
+              personaMessages={personaMessages}
+              personaInput={personaInput}
+              enableVoiceReply={enableVoiceReply}
+              isSendingPersona={isSendingPersona}
+              isRecordingPersona={isRecordingPersona}
+              isTranscribingPersona={isTranscribingPersona}
+              isRealtimeVoiceConnecting={isRealtimeVoiceConnecting}
+              isRealtimeVoiceActive={isRealtimeVoiceActive}
+              realtimeVoiceStatus={realtimeVoiceStatus}
+              onPersonaInputChange={setPersonaInput}
+              onPersonaSend={handlePersonaSend}
+              onPersonaVoiceToggle={isRecordingPersona ? stopPersonaRecording : () => void startPersonaRecording()}
+              onRealtimeVoiceToggle={handleRealtimeVoiceToggle}
+              onPersonaReset={handlePersonaReset}
+              onEnableVoiceReplyChange={setEnableVoiceReply}
+            />
+          ) : null}
 
-        {activeView === "music" ? (
-          <MusicWorkspace
-            reference={reference}
-            translation={translation}
-            musicTitle={musicTitle}
-            musicPrompt={musicPrompt}
-            musicStyle={musicStyle}
-            musicMood={musicMood}
-            musicResult={musicResult}
-            musicJob={musicJob}
-            musicError={musicError}
-            musicStatusLabel={musicStatusLabel}
-            isGeneratingMusic={isGeneratingMusic}
-            onReferenceChange={setReference}
-            onTranslationChange={setTranslation}
-            onMusicTitleChange={setMusicTitle}
-            onMusicPromptChange={setMusicPrompt}
-            onMusicStyleChange={setMusicStyle}
-            onMusicMoodChange={setMusicMood}
-            onGenerateMusic={handleMusicGeneration}
-          />
-        ) : null}
-      </main>
+          {activeView === "music" ? (
+            <MusicWorkspace
+              reference={reference}
+              translation={translation}
+              musicTitle={musicTitle}
+              musicPrompt={musicPrompt}
+              musicStyle={musicStyle}
+              musicMood={musicMood}
+              musicResult={musicResult}
+              musicJob={musicJob}
+              musicError={musicError}
+              musicStatusLabel={musicStatusLabel}
+              isGeneratingMusic={isGeneratingMusic}
+              onReferenceChange={setReference}
+              onTranslationChange={setTranslation}
+              onMusicTitleChange={setMusicTitle}
+              onMusicPromptChange={setMusicPrompt}
+              onMusicStyleChange={setMusicStyle}
+              onMusicMoodChange={setMusicMood}
+              onGenerateMusic={handleMusicGeneration}
+            />
+          ) : null}
+        </main>
+      </div>
     </div>
   );
 }

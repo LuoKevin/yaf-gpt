@@ -3,7 +3,7 @@ export type ImageStyle = "modern_editorial_illustration";
 export type HealthStatus = "checking" | "online" | "offline";
 export type PersonaChatRole = "user" | "assistant";
 export type MusicJobStatus = "queued" | "in_progress" | "completed" | "failed";
-export type ViewMode = "study" | "music" | "discussion";
+export type ViewMode = "study" | "chat" | "music" | "discussion";
 export type RealtimeVoice =
   | "alloy"
   | "ash"
