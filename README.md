@@ -35,6 +35,45 @@ Frontend: `http://localhost:5173`
 Backend API: `http://localhost:8000`
 Streamlit: `http://localhost:8501`
 
+## Render MVP Deploy
+
+This repo now includes a Render Blueprint at `render.yaml` for:
+
+- `yaf-gpt-api` as a FastAPI web service
+- `yaf-gpt-web` as a static Vite site
+
+Recommended MVP shape:
+
+- frontend on `https://<your-frontend>.onrender.com`
+- backend on `https://<your-api>.onrender.com`
+
+Setup:
+
+1. Push the repo to GitHub.
+2. In Render, create a new Blueprint from the repo.
+3. Keep the generated services from `render.yaml`.
+4. Set these environment variables in Render:
+
+```bash
+OPENAI_API_KEY=<your-openai-key>
+VITE_API_BASE_URL=https://<your-api>.onrender.com
+CORS_ORIGINS=https://<your-frontend>.onrender.com
+```
+
+If you later add custom domains, update them to something like:
+
+```bash
+VITE_API_BASE_URL=https://api.example.com
+CORS_ORIGINS=https://example.com
+```
+
+Notes:
+
+- The frontend is deployed as a Render Static Site, not from `frontend/Dockerfile`.
+- The backend uses the native Python runtime on Render for a simpler MVP deploy.
+- The static site includes a catch-all rewrite to `/index.html` for client-side routing.
+- `plan: free` is configured in `render.yaml`; switch the API service to `starter` if you want to avoid free-tier sleep/cold starts.
+
 ## Voice Worker (Scaffold)
 
 ```bash
