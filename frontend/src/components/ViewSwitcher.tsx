@@ -8,67 +8,19 @@ type ViewSwitcherProps = {
 };
 
 export function ViewSwitcher({ activeView, isCollapsed, onChange, onToggleCollapse }: ViewSwitcherProps) {
-  const workspaceItems: Array<{ view: ViewMode; title: string; copy: string; icon: JSX.Element }> = [
-    {
-      view: "chat",
-      title: "Chat",
-      copy: "Plain text",
-      icon: (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M4 19.5V5.75A1.75 1.75 0 0 1 5.75 4h7.5" />
-          <path d="M14 4h4.25A1.75 1.75 0 0 1 20 5.75V18.25A1.75 1.75 0 0 1 18.25 20H8" />
-          <path d="M8 16l7-7" />
-          <path d="M13.5 8.5H16" />
-          <path d="M8 20h8" />
-        </svg>
-      )
-    },
-    {
-      view: "study",
-      title: "Study",
-      copy: "Guide builder",
-      icon: (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M4.75 5.5A2.75 2.75 0 0 1 7.5 2.75H19.25V18.5H7.5A2.75 2.75 0 0 0 4.75 21.25Z" />
-          <path d="M7.5 2.75V21.25" />
-          <path d="M9.75 7.5H15.5" />
-          <path d="M9.75 11H15.5" />
-        </svg>
-      )
-    },
-    {
-      view: "music",
-      title: "Music",
-      copy: "Prompt to track",
-      icon: (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M14.5 4.75v10.5" />
-          <path d="M14.5 6.25 19 5v9.5" />
-          <path d="M14.5 15.25a2.75 2.75 0 1 1-2.75-2.75 2.75 2.75 0 0 1 2.75 2.75Z" />
-          <path d="M19 16.75A2.75 2.75 0 1 1 16.25 14 2.75 2.75 0 0 1 19 16.75Z" />
-        </svg>
-      )
-    },
-    {
-      view: "discussion",
-      title: "Discussion",
-      copy: "Voice and chat",
-      icon: (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M5.75 6.75A2.75 2.75 0 0 1 8.5 4h7A2.75 2.75 0 0 1 18.25 6.75v4.5A2.75 2.75 0 0 1 15.5 14h-4l-3.75 3v-3A2.75 2.75 0 0 1 5.75 11.25Z" />
-          <path d="M9.25 8.75h5.5" />
-          <path d="M9.25 11.25h3.75" />
-        </svg>
-      )
-    }
+  const workspaceItems: Array<{ view: ViewMode; title: string; copy: string; icon: string }> = [
+    { view: "chat", title: "Chat", copy: "Plain text", icon: "edit_note" },
+    { view: "study", title: "Study", copy: "Guide builder", icon: "menu_book" },
+    { view: "music", title: "Music", copy: "Prompt to track", icon: "library_music" },
+    { view: "discussion", title: "Discussion", copy: "Voice and chat", icon: "forum" }
   ];
 
   return (
     <aside className={`sidebar ${isCollapsed ? "collapsed" : ""}`}>
       <div className="sidebar-header">
         <div className="sidebar-brand">
-          <p className="eyebrow">yaf-gpt</p>
-          {!isCollapsed ? <p className="sidebar-copy">Workspaces</p> : null}
+          <h1 className="sidebar-brand-title">YAF-GPT</h1>
+          {!isCollapsed ? <p className="sidebar-copy">Digital Sanctuary</p> : null}
         </div>
         <button
           type="button"
@@ -76,21 +28,9 @@ export function ViewSwitcher({ activeView, isCollapsed, onChange, onToggleCollap
           onClick={onToggleCollapse}
           aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            {isCollapsed ? (
-              <path d="m9 6 6 6-6 6" />
-            ) : (
-              <path d="m15 6-6 6 6 6" />
-            )}
-          </svg>
+          <span className="material-symbols-outlined" aria-hidden="true">
+            {isCollapsed ? "menu" : "menu_open"}
+          </span>
         </button>
       </div>
 
@@ -105,7 +45,7 @@ export function ViewSwitcher({ activeView, isCollapsed, onChange, onToggleCollap
             aria-label={item.title}
           >
             <span className="view-icon" aria-hidden="true">
-              {item.icon}
+              <span className="material-symbols-outlined">{item.icon}</span>
             </span>
             {!isCollapsed ? (
               <span className="view-copy-block">

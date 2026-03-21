@@ -56,124 +56,104 @@ export function StudyWorkspace({
   onGeneratePlan,
   onGenerateImage
 }: StudyWorkspaceProps) {
+  const headingParts = reference.trim().split(" ");
+  const headingBook = headingParts[0] || "Study";
+  const headingRest = reference.trim().slice(headingBook.length).trim();
+
   return (
-    <>
-      <section className="panel control-panel">
-        <div className="panel-heading">
-          <div>
-            <p className="panel-kicker">Inputs</p>
-            <h2>Study</h2>
-          </div>
+    <section className="study-prototype">
+      <div className="study-main-column">
+        <div className="workspace-header">
+          <p className="workspace-kicker">Study</p>
+          <h1>
+            {headingBook} <span>{headingRest}</span>
+          </h1>
+          <p className="workspace-copy">
+            Build a guided reading flow, keep the text centered, and let the study plan sit beside the passage instead of taking over it.
+          </p>
         </div>
 
-        <label className="field">
-          <span>Reference</span>
-          <input value={reference} onChange={(event) => onReferenceChange(event.target.value)} placeholder="Luke 21:5-28" />
-        </label>
-
-        <label className="field">
-          <span>Translation</span>
+        <div className="study-selector-bar">
+          <div className="study-selector-field">
+            <span className="material-symbols-outlined">menu_book</span>
+            <input value={reference} onChange={(event) => onReferenceChange(event.target.value)} placeholder="Luke 21:5-28" />
+          </div>
+          <div className="study-selector-divider" />
           <select value={translation} onChange={(event) => onTranslationChange(event.target.value as TranslationCode)}>
             <option value="WEB">WEB</option>
             <option value="KJV">KJV</option>
           </select>
-        </label>
-
-        <label className="field">
-          <span>Goals</span>
-          <textarea rows={3} value={goals} onChange={(event) => onGoalsChange(event.target.value)} placeholder="Optional" />
-        </label>
-
-        <label className="field">
-          <span>Notes</span>
-          <textarea
-            rows={3}
-            value={userNotes}
-            onChange={(event) => onUserNotesChange(event.target.value)}
-            placeholder="Optional"
-          />
-        </label>
-
-        <label className="field field-inline">
-          <span>Include question notes</span>
-          <input
-            type="checkbox"
-            checked={includeQuestionNotes}
-            onChange={(event) => onIncludeQuestionNotesChange(event.target.checked)}
-          />
-        </label>
-
-        <div className="action-row action-row-single">
           <button type="button" className="primary-button" onClick={onFetchPassage} disabled={isLoadingPassage}>
             {isLoadingPassage ? "Loading..." : "Fetch passage"}
           </button>
+        </div>
+
+        <div className="study-goal-bar">
+          <label className="field">
+            <span>Study goal</span>
+            <input value={goals} onChange={(event) => onGoalsChange(event.target.value)} placeholder="Set your intention..." />
+          </label>
           <button type="button" className="secondary-button" onClick={onGeneratePlan} disabled={isLoadingStudyPlan}>
-            {isLoadingStudyPlan ? "Generating..." : "Generate plan"}
+            {isLoadingStudyPlan ? "Generating..." : "Get study"}
           </button>
-          <button type="button" className="secondary-button" onClick={onGenerateImage} disabled={isLoadingPassageImage}>
+          <button type="button" className="ghost-button" onClick={onGenerateImage} disabled={isLoadingPassageImage}>
             {isLoadingPassageImage ? "Generating..." : "Generate image"}
           </button>
         </div>
-      </section>
 
-      <section className="results-column">
-        <article className="panel">
-          <div className="panel-heading">
-            <div>
-              <p className="panel-kicker">Passage</p>
-              <h2>{passage?.normalized_reference ?? "No passage"}</h2>
-            </div>
-            {passage && <span className="meta-badge">{passage.translation}</span>}
-          </div>
+        {passageError ? <p className="error-banner">{passageError}</p> : null}
 
-          {passageError ? <p className="error-banner">{passageError}</p> : null}
-
+        <article className="study-passage-sheet">
           {passage ? (
-            <div className="stack">
-              <p className="passage-text">{passage.text}</p>
+            <>
+              <div className="study-passage-heading">
+                <p className="section-label">Passage</p>
+                <span className="surface-pill">{passage.translation}</span>
+              </div>
               {passage.verses.length > 0 ? (
-                <div className="verse-list">
+                <div className="study-verse-flow">
                   {passage.verses.map((verse) => (
-                    <article key={`${verse.book}-${verse.chapter}-${verse.verse}`} className="verse-card">
-                      <p className="verse-label">
-                        {verse.book} {verse.chapter}:{verse.verse}
-                      </p>
+                    <div key={`${verse.book}-${verse.chapter}-${verse.verse}`} className="study-verse-row">
+                      <span className="study-verse-number">{verse.verse}</span>
                       <p>{verse.text}</p>
-                    </article>
+                    </div>
                   ))}
                 </div>
-              ) : null}
-            </div>
+              ) : (
+                <p className="study-passage-text">{passage.text}</p>
+              )}
+            </>
           ) : (
-            <p className="empty-state">Fetch a passage.</p>
+            <p className="empty-state">Fetch a passage to begin the study workspace.</p>
           )}
         </article>
+      </div>
 
-        <article className="panel">
-          <div className="panel-heading">
+      <aside className="study-side-column">
+        <article className="prototype-card">
+          <div className="card-header">
             <div>
-              <p className="panel-kicker">Study plan</p>
-              <h2>{studyPlan?.passage_title ?? "No plan"}</h2>
+              <p className="section-label">Study plan</p>
+              <h3>{studyPlan?.passage_title ?? "Waiting for a plan"}</h3>
             </div>
-            {studyPlan && <span className="meta-badge">{studyPlan.model}</span>}
+            {studyPlan ? <span className="surface-pill">{studyPlan.model}</span> : null}
           </div>
 
           {studyPlanError ? <p className="error-banner">{studyPlanError}</p> : null}
 
           {studyPlan ? (
-            <div className="stack">
+            <div className="card-stack">
               <section>
-                <h3>Context</h3>
-                <ul className="content-list">
+                <h4>Context</h4>
+                <ul className="prototype-list">
                   {studyPlan.context_points.map((point) => (
                     <li key={point}>{point}</li>
                   ))}
                 </ul>
               </section>
-
               <section>
-                <h3>Questions</h3>
-                <ol className="content-list ordered-list">
+                <h4>Discussion</h4>
+                <ol className="prototype-list ordered">
                   {studyPlan.discussion_questions.map((question, idx) => (
                     <li key={question}>
                       {question}
@@ -184,10 +164,9 @@ export function StudyWorkspace({
                   ))}
                 </ol>
               </section>
-
               <section>
-                <h3>Reflection</h3>
-                <ul className="content-list">
+                <h4>Reflection</h4>
+                <ul className="prototype-list">
                   {studyPlan.reflection_questions.map((question, idx) => (
                     <li key={question}>
                       {question}
@@ -198,7 +177,6 @@ export function StudyWorkspace({
                   ))}
                 </ul>
               </section>
-
               {hasUsage ? (
                 <p className="usage-note">
                   Tokens: {studyPlan.usage?.prompt_tokens ?? 0} / {studyPlan.usage?.completion_tokens ?? 0} /{" "}
@@ -207,31 +185,49 @@ export function StudyWorkspace({
               ) : null}
             </div>
           ) : (
-            <p className="empty-state">Generate a plan.</p>
+            <p className="empty-state">Generate a study plan after setting your passage and goal.</p>
           )}
         </article>
 
-        <article className="panel">
-          <div className="panel-heading">
+        <article className="prototype-card">
+          <div className="card-header">
             <div>
-              <p className="panel-kicker">Image</p>
-              <h2>{passageImage ? "Ready" : "No image"}</h2>
+              <p className="section-label">Visual context</p>
+              <h3>{passageImage ? "Generated image" : "Awaiting image"}</h3>
             </div>
-            {passageImage && <span className="meta-badge">{passageImage.style}</span>}
           </div>
-
           {passageImageError ? <p className="error-banner">{passageImageError}</p> : null}
-
           {passageImage ? (
-            <div className="stack">
+            <div className="card-stack">
               <img className="image-preview" src={passageImage.image_b64_or_url} alt={passageImage.alt_text} />
               <p className="prompt-note">{passageImage.alt_text}</p>
             </div>
           ) : (
-            <p className="empty-state">Generate an image.</p>
+            <p className="empty-state">Generate an image to add a visual metaphor for the passage.</p>
           )}
         </article>
-      </section>
-    </>
+
+        <article className="prototype-card">
+          <div className="card-header">
+            <div>
+              <p className="section-label">Personal notes</p>
+              <h3>Marginalia</h3>
+            </div>
+          </div>
+          <label className="field">
+            <span>Notes</span>
+            <textarea rows={6} value={userNotes} onChange={(event) => onUserNotesChange(event.target.value)} placeholder="Pen your insights here..." />
+          </label>
+          <label className="toggle-row">
+            <span>Include question notes</span>
+            <input
+              type="checkbox"
+              checked={includeQuestionNotes}
+              onChange={(event) => onIncludeQuestionNotesChange(event.target.checked)}
+            />
+          </label>
+        </article>
+      </aside>
+    </section>
   );
 }

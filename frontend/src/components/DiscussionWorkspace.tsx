@@ -43,90 +43,128 @@ export function DiscussionWorkspace({
     isSendingPersona || isRecordingPersona || isTranscribingPersona || isRealtimeVoiceConnecting;
 
   return (
-    <section className="results-column">
-      <article className="panel">
-        <div className="panel-heading">
+    <section className="discussion-prototype">
+      <div className="workspace-header workspace-header-centered">
+        <p className="workspace-kicker">Discussion</p>
+        <h1>Live discussion</h1>
+        <p className="workspace-copy">
+          Keep the mentor conversation available in both text and voice, with the live session treated as the visual focal point.
+        </p>
+      </div>
+
+      <article className="discussion-voice-hero">
+        <div className="discussion-voice-meta">
           <div>
-            <p className="panel-kicker">Discussion</p>
-            <h2>Mentor chat</h2>
+            <p className="section-label">Voice session</p>
+            <h2>{isRealtimeVoiceActive ? "Voice session active" : "Mentor chat"}</h2>
+            <p className="muted-text">
+              Use live voice for a more conversational exchange, or fall back to typed and recorded input when you need more control.
+            </p>
           </div>
-          {personaModel ? <span className="meta-badge">{personaModel}</span> : null}
+          <div className="discussion-status-cluster">
+            {personaModel ? <span className="surface-pill">{personaModel}</span> : null}
+            {realtimeVoiceStatus ? <span className="surface-pill">{realtimeVoiceStatus}</span> : null}
+          </div>
         </div>
 
         {personaError ? <p className="error-banner">{personaError}</p> : null}
 
-        <div className="stack">
+        <div className="voice-visualizer-shell">
+          <div className={`voice-orbit ${isRealtimeVoiceActive ? "active" : ""}`}>
+            <div className="voice-orbit-inner">
+              <div className="voice-bars">
+                <span />
+                <span />
+                <span />
+                <span />
+                <span />
+                <span />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="discussion-controls">
+          <button
+            type="button"
+            className="secondary-button round-button"
+            onClick={onPersonaVoiceToggle}
+            disabled={isSendingPersona || isTranscribingPersona || isRealtimeVoiceActive || isRealtimeVoiceConnecting}
+          >
+            <span className="material-symbols-outlined">{isRecordingPersona ? "stop" : "mic"}</span>
+          </button>
+          <button
+            type="button"
+            className="danger-button call-button"
+            onClick={onRealtimeVoiceToggle}
+            disabled={isSendingPersona || isRecordingPersona || isTranscribingPersona}
+          >
+            <span className="material-symbols-outlined">{isRealtimeVoiceActive ? "call_end" : "wifi_calling_3"}</span>
+            <span>
+              {isRealtimeVoiceConnecting
+                ? "Connecting..."
+                : isRealtimeVoiceActive
+                  ? "End discussion"
+                  : "Start live voice"}
+            </span>
+          </button>
+          <button type="button" className="secondary-button round-button" onClick={onPersonaReset}>
+            <span className="material-symbols-outlined">restart_alt</span>
+          </button>
+        </div>
+      </article>
+
+      <div className="discussion-grid">
+        <article className="prototype-card">
+          <div className="card-header">
+            <div>
+              <p className="section-label">Transcript</p>
+              <h3>Conversation thread</h3>
+            </div>
+          </div>
           {personaMessages.length > 0 ? (
-            <div className="chat-thread">
+            <div className="discussion-transcript-list">
               {personaMessages.map((message, index) => (
-                <article key={`${message.role}-${index}`} className={`chat-bubble ${message.role}`}>
-                  <p className="summary-label">{message.role === "user" ? "You" : "Mentor"}</p>
-                  <p>{message.content}</p>
+                <article key={`${message.role}-${index}`} className={`chat-message ${message.role}`}>
+                  <div className="chat-message-body">
+                    <p>{message.content}</p>
+                  </div>
                 </article>
               ))}
             </div>
           ) : (
-            <p className="empty-state">Start the chat.</p>
+            <p className="empty-state">Start the discussion to see the transcript build in real time.</p>
           )}
+        </article>
 
+        <article className="prototype-card">
+          <div className="card-header">
+            <div>
+              <p className="section-label">Manual input</p>
+              <h3>Typed fallback</h3>
+            </div>
+          </div>
           <label className="field">
             <span>Message</span>
-            <textarea
-              rows={3}
-              value={personaInput}
-              onChange={(event) => onPersonaInputChange(event.target.value)}
-              placeholder="Ask a question"
-            />
+            <textarea rows={4} value={personaInput} onChange={(event) => onPersonaInputChange(event.target.value)} placeholder="Ask a question" />
           </label>
-
           <div className="mini-action-row">
-            <button
-              type="button"
-              className="secondary-button"
-              onClick={onPersonaSend}
-              disabled={isBusy || isRealtimeVoiceActive}
-            >
+            <button type="button" className="primary-button" onClick={onPersonaSend} disabled={isBusy || isRealtimeVoiceActive}>
               {isSendingPersona ? "Sending..." : "Send"}
             </button>
-            <button
-              type="button"
-              className="secondary-button"
-              onClick={onPersonaVoiceToggle}
-              disabled={isSendingPersona || isTranscribingPersona || isRealtimeVoiceActive || isRealtimeVoiceConnecting}
-            >
-              {isRecordingPersona ? "Stop recording" : "Voice input"}
-            </button>
-            <button
-              type="button"
-              className="secondary-button"
-              onClick={onRealtimeVoiceToggle}
-              disabled={isSendingPersona || isRecordingPersona || isTranscribingPersona}
-            >
-              {isRealtimeVoiceConnecting
-                ? "Connecting..."
-                : isRealtimeVoiceActive
-                  ? "Stop live voice"
-                  : "Live voice"}
-            </button>
-            <button type="button" className="secondary-button" onClick={onPersonaReset}>
-              Reset
-            </button>
+            <label className="toggle-row">
+              <span>Voice reply</span>
+              <input
+                type="checkbox"
+                checked={enableVoiceReply}
+                onChange={(event) => onEnableVoiceReplyChange(event.target.checked)}
+              />
+            </label>
           </div>
-
-          <label className="field field-inline">
-            <span>Voice reply</span>
-            <input
-              type="checkbox"
-              checked={enableVoiceReply}
-              onChange={(event) => onEnableVoiceReplyChange(event.target.checked)}
-            />
-          </label>
-
           {isRecordingPersona ? <p className="muted-text">Recording...</p> : null}
           {isTranscribingPersona ? <p className="muted-text">Transcribing audio...</p> : null}
-          {realtimeVoiceStatus ? <p className="muted-text">{realtimeVoiceStatus}</p> : null}
-        </div>
-      </article>
+        </article>
+      </div>
     </section>
   );
 }

@@ -37,70 +37,102 @@ export function TextChatWorkspace({
   }
 
   return (
-    <section className="chat-shell">
-      <div className="chat-window panel">
-        <div className="chat-header">
-          <div>
-            <p className="panel-kicker">Chat</p>
-            <h2>Text conversation</h2>
+    <section className="workspace-chat">
+      <div className="workspace-header workspace-header-centered">
+        <p className="workspace-kicker">Chat</p>
+        <h1>Sacred conversation</h1>
+        <p className="workspace-copy">
+          A centered assistant thread built for Scripture questions, reflection, and quick theological exploration.
+        </p>
+      </div>
+
+      <div className="chat-prototype-layout">
+        <div className="chat-feed-card">
+          <div className="chat-feed-header">
+            <div>
+              <p className="section-label">Conversation</p>
+              <h2>The assistant is ready</h2>
+            </div>
+            {personaModel ? <span className="surface-pill">{personaModel}</span> : null}
           </div>
-          {personaModel ? <span className="meta-badge">{personaModel}</span> : null}
+
+          {personaError ? <p className="error-banner">{personaError}</p> : null}
+
+          <div className="chat-log">
+            {personaMessages.length > 0 ? (
+              personaMessages.map((message, index) => (
+                <article key={`${message.role}-${index}`} className={`chat-message ${message.role}`}>
+                  {message.role === "assistant" ? (
+                    <div className="assistant-badge-row">
+                      <div className="assistant-avatar">
+                        <span className="material-symbols-outlined">auto_awesome</span>
+                      </div>
+                      <span className="assistant-label">YAF-GPT Assistant</span>
+                    </div>
+                  ) : null}
+                  <div className="chat-message-body">
+                    <p>{message.content}</p>
+                  </div>
+                </article>
+              ))
+            ) : (
+              <div className="chat-empty-state">
+                <p className="section-label">Start a conversation</p>
+                <h3>Ask about a passage, a doctrine, or a question you are still wrestling through.</h3>
+                <p className="muted-text">
+                  This workspace keeps the exchange quiet and text-first, without voice controls competing for attention.
+                </p>
+              </div>
+            )}
+          </div>
         </div>
 
-        <div className="chat-toolbar">
-          <span className="chat-context">{reference.trim() || "No passage context set"}</span>
-          <span className="chat-context">{translation}</span>
-          <button type="button" className="ghost-button" onClick={onPersonaReset}>
+        <aside className="chat-context-panel">
+          <div className="prototype-card">
+            <p className="section-label">Passage context</p>
+            <div className="context-stack">
+              <span className="context-chip">{reference.trim() || "No passage selected"}</span>
+              <span className="context-chip">{translation}</span>
+            </div>
+          </div>
+          <div className="prototype-card">
+            <p className="section-label">Mode</p>
+            <p className="muted-text">
+              Use this view for the cleanest mentoring thread. Switch to Discussion when you want recording or live voice.
+            </p>
+          </div>
+          <button type="button" className="ghost-button wide-button" onClick={onPersonaReset}>
             New chat
           </button>
-        </div>
+        </aside>
+      </div>
 
-        {personaError ? <p className="error-banner">{personaError}</p> : null}
-
-        <div className="chat-log">
-          {personaMessages.length > 0 ? (
-            personaMessages.map((message, index) => (
-              <article key={`${message.role}-${index}`} className={`chat-message ${message.role}`}>
-                <div className="chat-message-body">
-                  <p>{message.content}</p>
-                </div>
-              </article>
-            ))
-          ) : (
-            <div className="chat-empty-state">
-              <p className="summary-label">Start a conversation</p>
-              <h3>Ask a passage question or explore an idea in plain text.</h3>
-              <p className="muted-text">
-                This mode keeps the mentor chat focused on a simple thread, without live voice or recording controls.
-              </p>
-            </div>
-          )}
-        </div>
-
+      <div className="chat-composer-shell">
+        <label className="sr-only" htmlFor="text-chat-input">
+          Message
+        </label>
         <div className="chat-composer">
-          <label className="sr-only" htmlFor="text-chat-input">
-            Message
-          </label>
           <textarea
             id="text-chat-input"
             rows={1}
             value={personaInput}
             onChange={(event) => onPersonaInputChange(event.target.value)}
             onKeyDown={handleComposerKeyDown}
-            placeholder="Message the mentor"
+            placeholder="Ask the Assistant about Scripture..."
           />
           <div className="chat-composer-actions">
-            <p className="muted-text">Enter to send. Shift+Enter for a new line.</p>
-            <button
-              type="button"
-              className="primary-button"
-              onClick={onPersonaSend}
-              disabled={isSendingPersona}
-            >
+            <div className="composer-hints">
+              <span className="material-symbols-outlined">edit_note</span>
+              <p className="muted-text">Enter to send. Shift+Enter for a new line.</p>
+            </div>
+            <button type="button" className="primary-button" onClick={onPersonaSend} disabled={isSendingPersona}>
               {isSendingPersona ? "Sending..." : "Send"}
             </button>
           </div>
         </div>
+        <p className="composer-disclaimer">
+          YAF-GPT can offer historical and theological help, but it is not a replacement for pastoral care or communal worship.
+        </p>
       </div>
     </section>
   );

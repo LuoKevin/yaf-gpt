@@ -904,21 +904,23 @@ export default function App() {
       />
 
       <div className="shell-content">
-        <header className="hero">
-          <div className="hero-copy">
-            <p className="eyebrow">Workspace</p>
-            <h1>Bible Study Workspace</h1>
-            <p className="hero-text">{activeViewCopy}</p>
-            <div className="hero-meta">
-              <span className="chip">{activeViewLabel}</span>
-              <span className="chip">{reference.trim() || "Set a passage"}</span>
-              <span className="chip">{translation}</span>
+        <header className="app-topbar">
+          <div className="app-topbar-copy">
+            <span className="app-brand">YAF-GPT</span>
+            <span className="app-divider" />
+            <div>
+              <p className="app-topbar-title">{activeViewLabel}</p>
+              <p className="app-topbar-subtitle">{activeViewCopy}</p>
             </div>
           </div>
 
-          <div className={`status-pill ${healthStatus}`}>
-            <span className="status-dot" />
-            <span>{healthStatus.toUpperCase()}</span>
+          <div className="app-topbar-meta">
+            <span className="surface-pill">{reference.trim() || "Set a passage"}</span>
+            <span className="surface-pill">{translation}</span>
+            <div className={`status-pill ${healthStatus}`}>
+              <span className="status-dot" />
+              <span>{healthStatus.toUpperCase()}</span>
+            </div>
           </div>
         </header>
 
