@@ -684,15 +684,30 @@ textarea {
 
 .chat-composer {
   padding: 10px;
-  background: var(--surface-inset);
+  border: 1px solid rgba(197, 197, 216, 0.12);
+  background: #181818;
   border-radius: 22px;
   box-shadow: var(--shadow);
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+}
+
+.chat-composer:focus-within {
+  border-color: rgba(197, 197, 216, 0.28);
+  background: #1b1b1b;
+  box-shadow:
+    var(--shadow),
+    0 0 0 1px rgba(197, 197, 216, 0.12);
 }
 
 .chat-composer textarea {
-  background: transparent;
+  background: #101010;
   min-height: 72px;
   padding: 12px 14px;
+  border-radius: 16px;
+}
+
+.chat-composer textarea::placeholder {
+  color: rgba(200, 197, 204, 0.42);
 }
 
 .chat-composer-actions {

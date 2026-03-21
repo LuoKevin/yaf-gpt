@@ -1,10 +1,8 @@
 import type { KeyboardEvent } from "react";
 
-import type { PersonaChatMessage, TranslationCode } from "../types";
+import type { PersonaChatMessage } from "../types";
 
 type TextChatWorkspaceProps = {
-  reference: string;
-  translation: TranslationCode;
   personaModel: string | null;
   personaError: string;
   personaMessages: PersonaChatMessage[];
@@ -16,8 +14,6 @@ type TextChatWorkspaceProps = {
 };
 
 export function TextChatWorkspace({
-  reference,
-  translation,
   personaModel,
   personaError,
   personaMessages,
@@ -40,7 +36,6 @@ export function TextChatWorkspace({
     <section className="workspace-chat">
       <div className="workspace-header workspace-header-centered">
         <p className="workspace-kicker">Chat</p>
-        <h1>Sacred conversation</h1>
         <p className="workspace-copy">
           A centered assistant thread built for Scripture questions, reflection, and quick theological exploration.
         </p>
@@ -80,7 +75,7 @@ export function TextChatWorkspace({
                 <p className="section-label">Start a conversation</p>
                 <h3>Ask about a passage, a doctrine, or a question you are still wrestling through.</h3>
                 <p className="muted-text">
-                  This workspace keeps the exchange quiet and text-first, without voice controls competing for attention.
+                  This workspace keeps the exchange quiet and text-first, with the focus staying on the conversation itself.
                 </p>
               </div>
             )}
@@ -89,16 +84,9 @@ export function TextChatWorkspace({
 
         <aside className="chat-context-panel">
           <div className="prototype-card">
-            <p className="section-label">Passage context</p>
-            <div className="context-stack">
-              <span className="context-chip">{reference.trim() || "No passage selected"}</span>
-              <span className="context-chip">{translation}</span>
-            </div>
-          </div>
-          <div className="prototype-card">
             <p className="section-label">Mode</p>
             <p className="muted-text">
-              Use this view for the cleanest mentoring thread. Switch to Discussion when you want recording or live voice.
+              Use this view for the cleanest mentoring thread, with fewer controls and less interface noise around the exchange.
             </p>
           </div>
           <button type="button" className="ghost-button wide-button" onClick={onPersonaReset}>

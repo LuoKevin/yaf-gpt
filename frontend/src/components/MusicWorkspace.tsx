@@ -1,9 +1,6 @@
-import type { MusicGenerateResponse, MusicJobResponse, MusicJobStatus, TranslationCode } from "../types";
+import type { MusicGenerateResponse, MusicJobResponse, MusicJobStatus } from "../types";
 
 type MusicWorkspaceProps = {
-  reference: string;
-  translation: TranslationCode;
-  musicTitle: string;
   musicPrompt: string;
   musicStyle: string;
   musicMood: string;
@@ -12,9 +9,6 @@ type MusicWorkspaceProps = {
   musicError: string;
   musicStatusLabel: MusicJobStatus | "queued";
   isGeneratingMusic: boolean;
-  onReferenceChange: (value: string) => void;
-  onTranslationChange: (value: TranslationCode) => void;
-  onMusicTitleChange: (value: string) => void;
   onMusicPromptChange: (value: string) => void;
   onMusicStyleChange: (value: string) => void;
   onMusicMoodChange: (value: string) => void;
@@ -22,9 +16,6 @@ type MusicWorkspaceProps = {
 };
 
 export function MusicWorkspace({
-  reference,
-  translation,
-  musicTitle,
   musicPrompt,
   musicStyle,
   musicMood,
@@ -33,9 +24,6 @@ export function MusicWorkspace({
   musicError,
   musicStatusLabel,
   isGeneratingMusic,
-  onReferenceChange,
-  onTranslationChange,
-  onMusicTitleChange,
   onMusicPromptChange,
   onMusicStyleChange,
   onMusicMoodChange,
@@ -53,23 +41,6 @@ export function MusicWorkspace({
 
       <div className="music-generation-card">
         <div className="card-stack">
-          <label className="field">
-            <span>Reference</span>
-            <input value={reference} onChange={(event) => onReferenceChange(event.target.value)} placeholder="Luke 21:5-28" />
-          </label>
-          <div className="music-grid">
-            <label className="field">
-              <span>Translation</span>
-              <select value={translation} onChange={(event) => onTranslationChange(event.target.value as TranslationCode)}>
-                <option value="WEB">WEB</option>
-                <option value="KJV">KJV</option>
-              </select>
-            </label>
-            <label className="field">
-              <span>Track title</span>
-              <input value={musicTitle} onChange={(event) => onMusicTitleChange(event.target.value)} placeholder="Optional" />
-            </label>
-          </div>
           <label className="field">
             <span>Sonic prompt</span>
             <textarea
@@ -114,9 +85,7 @@ export function MusicWorkspace({
               </div>
               <div className="track-meta">
                 <h3>{musicResult.title}</h3>
-                <p>
-                  {musicStyle} • {musicMood} • {translation}
-                </p>
+                <p>{musicStyle} • {musicMood}</p>
               </div>
               <span className={`job-status ${musicStatusLabel}`}>{musicStatusLabel}</span>
             </div>

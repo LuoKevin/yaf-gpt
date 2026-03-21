@@ -543,7 +543,9 @@ export default function App() {
           return current;
         });
       } else {
-        speakPersonaReply(assistantReply);
+        if (activeView !== "chat") {
+          speakPersonaReply(assistantReply);
+        }
       }
     } catch (error) {
       setPersonaMessages((current) => {
@@ -883,7 +885,7 @@ export default function App() {
   }, [activeView]);
   const activeViewCopy = useMemo(() => {
     if (activeView === "chat") {
-      return "Use a simpler ChatGPT-style text thread for quick questions, grounded by the same passage context and mentor behavior as the richer discussion view.";
+      return "Use a simpler ChatGPT-style text thread for quick questions, grounded by the same passage context and mentor behavior as the rest of the workspace.";
     }
     if (activeView === "study") {
       return "Shape a sharper small-group guide with grounded context, discussion flow, and a companion passage image in one place.";
@@ -915,8 +917,6 @@ export default function App() {
           </div>
 
           <div className="app-topbar-meta">
-            <span className="surface-pill">{reference.trim() || "Set a passage"}</span>
-            <span className="surface-pill">{translation}</span>
             <div className={`status-pill ${healthStatus}`}>
               <span className="status-dot" />
               <span>{healthStatus.toUpperCase()}</span>
@@ -929,8 +929,6 @@ export default function App() {
         >
           {activeView === "chat" ? (
             <TextChatWorkspace
-              reference={reference}
-              translation={translation}
               personaModel={personaModel}
               personaError={personaError}
               personaMessages={personaMessages}
@@ -994,9 +992,6 @@ export default function App() {
 
           {activeView === "music" ? (
             <MusicWorkspace
-              reference={reference}
-              translation={translation}
-              musicTitle={musicTitle}
               musicPrompt={musicPrompt}
               musicStyle={musicStyle}
               musicMood={musicMood}
@@ -1005,9 +1000,6 @@ export default function App() {
               musicError={musicError}
               musicStatusLabel={musicStatusLabel}
               isGeneratingMusic={isGeneratingMusic}
-              onReferenceChange={setReference}
-              onTranslationChange={setTranslation}
-              onMusicTitleChange={setMusicTitle}
               onMusicPromptChange={setMusicPrompt}
               onMusicStyleChange={setMusicStyle}
               onMusicMoodChange={setMusicMood}
