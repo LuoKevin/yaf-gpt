@@ -1,9 +1,105 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+
 import type {
   BiblePassageResponse,
   PassageImageResponse,
   StudyPlanResponse,
   TranslationCode
 } from "../types";
+
+const BIBLE_BOOKS = [
+  "Genesis",
+  "Exodus",
+  "Leviticus",
+  "Numbers",
+  "Deuteronomy",
+  "Joshua",
+  "Judges",
+  "Ruth",
+  "1 Samuel",
+  "2 Samuel",
+  "1 Kings",
+  "2 Kings",
+  "1 Chronicles",
+  "2 Chronicles",
+  "Ezra",
+  "Nehemiah",
+  "Esther",
+  "Job",
+  "Psalms",
+  "Proverbs",
+  "Ecclesiastes",
+  "Song of Solomon",
+  "Isaiah",
+  "Jeremiah",
+  "Lamentations",
+  "Ezekiel",
+  "Daniel",
+  "Hosea",
+  "Joel",
+  "Amos",
+  "Obadiah",
+  "Jonah",
+  "Micah",
+  "Nahum",
+  "Habakkuk",
+  "Zephaniah",
+  "Haggai",
+  "Zechariah",
+  "Malachi",
+  "Matthew",
+  "Mark",
+  "Luke",
+  "John",
+  "Acts",
+  "Romans",
+  "1 Corinthians",
+  "2 Corinthians",
+  "Galatians",
+  "Ephesians",
+  "Philippians",
+  "Colossians",
+  "1 Thessalonians",
+  "2 Thessalonians",
+  "1 Timothy",
+  "2 Timothy",
+  "Titus",
+  "Philemon",
+  "Hebrews",
+  "James",
+  "1 Peter",
+  "2 Peter",
+  "1 John",
+  "2 John",
+  "3 John",
+  "Jude",
+  "Revelation"
+] as const;
+
+const PASSAGE_RANGE_PATTERN = /^\d{1,3}(?::\d{1,3})?(?:-\d{1,3}(?::\d{1,3})?)?$/;
+
+function normalizeBookInput(value: string) {
+  return value.trim().replace(/\s+/g, " ");
+}
+
+function parseReferenceParts(reference: string) {
+  const cleaned = normalizeBookInput(reference);
+  const matchedBook = [...BIBLE_BOOKS]
+    .sort((left, right) => right.length - left.length)
+    .find((book) => cleaned.toLowerCase() === book.toLowerCase() || cleaned.toLowerCase().startsWith(`${book.toLowerCase()} `));
+
+  if (!matchedBook) {
+    return {
+      book: "",
+      range: cleaned
+    };
+  }
+
+  return {
+    book: matchedBook,
+    range: cleaned.slice(matchedBook.length).trim()
+  };
+}
 
 type StudyWorkspaceProps = {
   reference: string;
@@ -33,7 +129,6 @@ type StudyWorkspaceProps = {
 
 export function StudyWorkspace({
   reference,
-  translation,
   goals,
   userNotes,
   includeQuestionNotes,
@@ -48,7 +143,6 @@ export function StudyWorkspace({
   isLoadingPassageImage,
   hasUsage,
   onReferenceChange,
-  onTranslationChange,
   onGoalsChange,
   onUserNotesChange,
   onIncludeQuestionNotesChange,
@@ -56,9 +150,85 @@ export function StudyWorkspace({
   onGeneratePlan,
   onGenerateImage
 }: StudyWorkspaceProps) {
-  const headingParts = reference.trim().split(" ");
-  const headingBook = headingParts[0] || "Study";
-  const headingRest = reference.trim().slice(headingBook.length).trim();
+  const parsedReference = useMemo(() => parseReferenceParts(reference), [reference]);
+  const [bookInput, setBookInput] = useState(parsedReference.book);
+  const [rangeInput, setRangeInput] = useState(parsedReference.range);
+  const [isBookMenuOpen, setIsBookMenuOpen] = useState(false);
+  const [bookFilterQuery, setBookFilterQuery] = useState("");
+  const [isBookFiltering, setIsBookFiltering] = useState(false);
+  const bookSelectorRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    setBookInput(parsedReference.book);
+    setRangeInput(parsedReference.range);
+  }, [parsedReference.book, parsedReference.range]);
+
+  useEffect(() => {
+    function handlePointerDown(event: MouseEvent) {
+      if (!bookSelectorRef.current?.contains(event.target as Node)) {
+        setIsBookMenuOpen(false);
+      }
+    }
+
+    window.addEventListener("mousedown", handlePointerDown);
+    return () => {
+      window.removeEventListener("mousedown", handlePointerDown);
+    };
+  }, []);
+
+  const normalizedBook = normalizeBookInput(bookInput);
+  const hasExactBookMatch = BIBLE_BOOKS.some((book) => book.toLowerCase() === normalizedBook.toLowerCase());
+  const normalizedRange = rangeInput.trim();
+  const isRangeValid = normalizedRange.length > 0 && PASSAGE_RANGE_PATTERN.test(normalizedRange);
+  const canSubmitReference = hasExactBookMatch && isRangeValid;
+  const filteredBooks = useMemo(() => {
+    if (!isBookFiltering) {
+      return [...BIBLE_BOOKS];
+    }
+    const query = normalizeBookInput(bookFilterQuery).toLowerCase();
+    if (!query) {
+      return [...BIBLE_BOOKS];
+    }
+    return BIBLE_BOOKS.filter((book) => book.toLowerCase().includes(query));
+  }, [bookFilterQuery, isBookFiltering]);
+
+  function updateReference(nextBook: string, nextRange: string) {
+    const cleanedBook = normalizeBookInput(nextBook);
+    const cleanedRange = nextRange.trim();
+
+    if (
+      BIBLE_BOOKS.some((book) => book.toLowerCase() === cleanedBook.toLowerCase()) &&
+      PASSAGE_RANGE_PATTERN.test(cleanedRange)
+    ) {
+      onReferenceChange(`${cleanedBook} ${cleanedRange}`);
+    }
+  }
+
+  function handleBookChange(value: string) {
+    setBookInput(value);
+    setBookFilterQuery(value);
+    setIsBookFiltering(true);
+    setIsBookMenuOpen(true);
+    updateReference(value, rangeInput);
+  }
+
+  function handleBookSelect(book: string) {
+    setBookInput(book);
+    setBookFilterQuery("");
+    setIsBookFiltering(false);
+    setIsBookMenuOpen(false);
+    updateReference(book, rangeInput);
+  }
+
+  function handleRangeChange(value: string) {
+    setRangeInput(value);
+    if (PASSAGE_RANGE_PATTERN.test(value.trim())) {
+      updateReference(bookInput, value);
+    }
+  }
+
+  const headingBook = parsedReference.book || "Study";
+  const headingRest = parsedReference.range;
 
   return (
     <section className="study-prototype">
@@ -74,19 +244,66 @@ export function StudyWorkspace({
         </div>
 
         <div className="study-selector-bar">
-          <div className="study-selector-field">
+          <div className="study-selector-field study-book-selector" ref={bookSelectorRef}>
             <span className="material-symbols-outlined">menu_book</span>
-            <input value={reference} onChange={(event) => onReferenceChange(event.target.value)} placeholder="Luke 21:5-28" />
+            <input
+              value={bookInput}
+              onChange={(event) => handleBookChange(event.target.value)}
+              onFocus={() => {
+                setIsBookMenuOpen(true);
+                setIsBookFiltering(false);
+                setBookFilterQuery("");
+              }}
+              placeholder="Select a book"
+              aria-expanded={isBookMenuOpen}
+              aria-haspopup="listbox"
+            />
+            {isBookMenuOpen ? (
+              <div className="study-book-dropdown" role="listbox" aria-label="Bible books">
+                {filteredBooks.length > 0 ? (
+                  filteredBooks.map((book) => (
+                    <button
+                      key={book}
+                      type="button"
+                      className={`study-book-option ${book.toLowerCase() === normalizedBook.toLowerCase() ? "active" : ""}`}
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={() => handleBookSelect(book)}
+                    >
+                      {book}
+                    </button>
+                  ))
+                ) : (
+                  <p className="study-book-empty">No matching book.</p>
+                )}
+              </div>
+            ) : null}
           </div>
-          <div className="study-selector-divider" />
-          <select value={translation} onChange={(event) => onTranslationChange(event.target.value as TranslationCode)}>
-            <option value="WEB">WEB</option>
-            <option value="KJV">KJV</option>
-          </select>
-          <button type="button" className="primary-button" onClick={onFetchPassage} disabled={isLoadingPassage}>
+          <input
+            className="study-range-input"
+            value={rangeInput}
+            onChange={(event) => handleRangeChange(event.target.value)}
+            placeholder="21:5-28"
+            inputMode="numeric"
+            pattern={PASSAGE_RANGE_PATTERN.source}
+            title="Use formats like 8, 8:1, 8:1-11, or 8:1-9:4."
+            aria-invalid={rangeInput.length > 0 && !isRangeValid}
+          />
+          <button
+            type="button"
+            className="primary-button"
+            onClick={onFetchPassage}
+            disabled={isLoadingPassage || !canSubmitReference}
+          >
             {isLoadingPassage ? "Loading..." : "Fetch passage"}
           </button>
         </div>
+
+        {!hasExactBookMatch && normalizedBook.length > 0 ? (
+          <p className="field-note">Choose a canonical Bible book from the dropdown list.</p>
+        ) : null}
+        {rangeInput.length > 0 && !isRangeValid ? (
+          <p className="field-note">Passage range must match formats like `8`, `8:1`, `8:1-11`, or `8:1-9:4`.</p>
+        ) : null}
 
         <div className="study-goal-bar">
           <label className="field">
