@@ -24,9 +24,8 @@ class MusicGenerationService:
         resolved = resolve_generate_music_command(
             GenerateMusicCommand(
                 prompt=payload.prompt,
-                style_hint=payload.style_hint,
-                mood_hint=payload.mood_hint,
-                title=payload.title,
+                style_hint=payload.style,
+                mood_hint=payload.mood,
             )
         )
         try:

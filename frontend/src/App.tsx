@@ -7,7 +7,6 @@ import { TextChatWorkspace } from "./components/TextChatWorkspace";
 import { ViewSwitcher } from "./components/ViewSwitcher";
 import {
   blobToDataUrl,
-  buildMusicPrompt,
   normalizeReference,
   requestJson,
   requestRealtimeAnswer,
@@ -74,7 +73,6 @@ export default function App() {
   const realtimeUserTranscriptItemIdsRef = useRef<Set<string>>(new Set());
   const realtimeFinalizedAssistantItemIdsRef = useRef<Set<string>>(new Set());
 
-  const [musicTitle, setMusicTitle] = useState("");
   const [musicPrompt, setMusicPrompt] = useState("");
   const [musicStyle, setMusicStyle] = useState("modern worship, acoustic");
   const [musicMood, setMusicMood] = useState("hopeful");
@@ -817,10 +815,9 @@ export default function App() {
   }
 
   async function handleMusicGeneration() {
-    const trimmedReference = reference.trim();
     const trimmedPrompt = musicPrompt.trim();
-    if (!trimmedReference && !trimmedPrompt) {
-      setMusicError("Enter a reference or prompt.");
+    if (!trimmedPrompt) {
+      setMusicError("Enter a prompt.");
       return;
     }
 
@@ -828,22 +825,15 @@ export default function App() {
     setMusicError("");
 
     try {
-      const canReusePassage =
-        passage !== null &&
-        normalizeReference(passage.reference) === normalizeReference(trimmedReference) &&
-        passage.translation === translation;
-      const prompt = buildMusicPrompt(trimmedReference, canReusePassage ? passage.text : null, trimmedPrompt);
-
       const response = await requestJson<MusicGenerateResponse>("/api/music/generate", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          title: musicTitle.trim() || undefined,
-          prompt,
-          style_hint: musicStyle.trim(),
-          mood_hint: musicMood.trim() || undefined
+          prompt: trimmedPrompt,
+          style: musicStyle.trim(),
+          mood: musicMood.trim() || undefined
         })
       });
 

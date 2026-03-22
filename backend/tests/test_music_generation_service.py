@@ -52,8 +52,8 @@ class MusicGenerationServiceTests(unittest.TestCase):
         response = service.generate_music(
             MusicGenerateRequest(
                 prompt="  make a hopeful worship song about endurance  ",
-                style_hint=" modern worship ",
-                mood_hint=" hopeful ",
+                style=" modern worship ",
+                mood=" hopeful ",
             )
         )
 
@@ -70,7 +70,7 @@ class MusicGenerationServiceTests(unittest.TestCase):
             service.generate_music(
                 MusicGenerateRequest(
                     prompt="   ",
-                    style_hint="modern worship",
+                    style="modern worship",
                 )
             )
 
@@ -83,7 +83,7 @@ class MusicGenerationServiceTests(unittest.TestCase):
             service.generate_music(
                 MusicGenerateRequest(
                     prompt="generate a song",
-                    style_hint="modern worship",
+                    style="modern worship",
                 )
             )
 

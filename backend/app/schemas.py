@@ -302,18 +302,14 @@ class MusicGenerateRequest(BaseModel):
         min_length=3,
         description="User text prompt or lyrics seed for music generation.",
     )
-    style_hint: str = Field(
+    style: str = Field(
         default="modern worship, acoustic",
         min_length=3,
         description="High-level style direction sent to the music provider.",
     )
-    mood_hint: Optional[str] = Field(
+    mood: Optional[str] = Field(
         default=None,
         description="Optional mood direction, for example hopeful, reflective, triumphant.",
-    )
-    title: Optional[str] = Field(
-        default=None,
-        description="Optional track title override.",
     )
 
 

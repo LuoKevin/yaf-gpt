@@ -181,7 +181,7 @@ class _MusicGenerationServiceStub:
             job_id="music-job-1",
             status="queued",
             provider="mock",
-            title=payload.title or "Generated Track",
+            title="Generated Track",
             prompt=payload.prompt,
         )
 
@@ -453,8 +453,8 @@ class APIRouteTests(unittest.TestCase):
             "/api/music/generate",
             json={
                 "prompt": "hopeful worship track",
-                "style_hint": "modern worship",
-                "mood_hint": "hopeful",
+                "style": "modern worship",
+                "mood": "hopeful",
             },
         )
         self.assertEqual(response.status_code, 200)
@@ -467,7 +467,7 @@ class APIRouteTests(unittest.TestCase):
             "/api/music/generate",
             json={
                 "prompt": "bad",
-                "style_hint": "modern worship",
+                "style": "modern worship",
             },
         )
         self.assertEqual(response.status_code, 400)
@@ -477,7 +477,7 @@ class APIRouteTests(unittest.TestCase):
             "/api/music/generate",
             json={
                 "prompt": "provider",
-                "style_hint": "modern worship",
+                "style": "modern worship",
             },
         )
         self.assertEqual(response.status_code, 502)
