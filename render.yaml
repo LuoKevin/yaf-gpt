@@ -23,7 +23,6 @@ services:
   - name: yaf-gpt-web
     type: web
     runtime: static
-    plan: free
     rootDir: frontend
     buildCommand: npm ci && npm run build
     staticPublishPath: dist
