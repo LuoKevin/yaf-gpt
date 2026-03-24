@@ -28,7 +28,7 @@ import type {
 } from "./types";
 
 export default function App() {
-  const [activeView, setActiveView] = useState<ViewMode>("study");
+  const [activeView, setActiveView] = useState<ViewMode>("chat");
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   const [reference, setReference] = useState("Luke 21:5-28");
@@ -893,6 +893,7 @@ export default function App() {
         isCollapsed={isSidebarCollapsed}
         onChange={setActiveView}
         onToggleCollapse={() => setIsSidebarCollapsed((current) => !current)}
+        onNewChat={handlePersonaReset}
       />
 
       <div className="shell-content">
@@ -926,7 +927,6 @@ export default function App() {
               isSendingPersona={isSendingPersona}
               onPersonaInputChange={setPersonaInput}
               onPersonaSend={handlePersonaSend}
-              onPersonaReset={handlePersonaReset}
             />
           ) : null}
 

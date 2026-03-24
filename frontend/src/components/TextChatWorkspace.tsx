@@ -10,7 +10,6 @@ type TextChatWorkspaceProps = {
   isSendingPersona: boolean;
   onPersonaInputChange: (value: string) => void;
   onPersonaSend: () => void | Promise<void>;
-  onPersonaReset: () => void;
 };
 
 export function TextChatWorkspace({
@@ -20,8 +19,7 @@ export function TextChatWorkspace({
   personaInput,
   isSendingPersona,
   onPersonaInputChange,
-  onPersonaSend,
-  onPersonaReset
+  onPersonaSend
 }: TextChatWorkspaceProps) {
   function handleComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
     if (event.key !== "Enter" || event.shiftKey) {
@@ -36,9 +34,6 @@ export function TextChatWorkspace({
     <section className="workspace-chat">
       <div className="workspace-header workspace-header-centered">
         <p className="workspace-kicker">Chat</p>
-        <p className="workspace-copy">
-          A centered assistant thread built for Scripture questions, reflection, and quick theological exploration.
-        </p>
       </div>
 
       <div className="chat-prototype-layout">
@@ -74,25 +69,10 @@ export function TextChatWorkspace({
               <div className="chat-empty-state">
                 <p className="section-label">Start a conversation</p>
                 <h3>Ask about a passage, a doctrine, or a question you are still wrestling through.</h3>
-                <p className="muted-text">
-                  This workspace keeps the exchange quiet and text-first, with the focus staying on the conversation itself.
-                </p>
               </div>
             )}
           </div>
         </div>
-
-        <aside className="chat-context-panel">
-          <div className="prototype-card">
-            <p className="section-label">Mode</p>
-            <p className="muted-text">
-              Use this view for the cleanest mentoring thread, with fewer controls and less interface noise around the exchange.
-            </p>
-          </div>
-          <button type="button" className="ghost-button wide-button" onClick={onPersonaReset}>
-            New chat
-          </button>
-        </aside>
       </div>
 
       <div className="chat-composer-shell">
@@ -118,9 +98,6 @@ export function TextChatWorkspace({
             </button>
           </div>
         </div>
-        <p className="composer-disclaimer">
-          YAF-GPT can offer historical and theological help, but it is not a replacement for pastoral care or communal worship.
-        </p>
       </div>
     </section>
   );

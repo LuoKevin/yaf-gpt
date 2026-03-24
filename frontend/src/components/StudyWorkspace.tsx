@@ -227,6 +227,17 @@ export function StudyWorkspace({
     }
   }
 
+  function toggleBookMenu() {
+    setIsBookMenuOpen((current) => {
+      const next = !current;
+      if (next) {
+        setIsBookFiltering(false);
+        setBookFilterQuery("");
+      }
+      return next;
+    });
+  }
+
   const headingBook = parsedReference.book || "Study";
   const headingRest = parsedReference.range;
 
@@ -258,6 +269,17 @@ export function StudyWorkspace({
               aria-expanded={isBookMenuOpen}
               aria-haspopup="listbox"
             />
+            <button
+              type="button"
+              className={`study-selector-caret-button ${isBookMenuOpen ? "open" : ""}`}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={toggleBookMenu}
+              aria-label={isBookMenuOpen ? "Close book selector" : "Open book selector"}
+            >
+              <span className="material-symbols-outlined study-selector-caret" aria-hidden="true">
+                expand_more
+              </span>
+            </button>
             {isBookMenuOpen ? (
               <div className="study-book-dropdown" role="listbox" aria-label="Bible books">
                 {filteredBooks.length > 0 ? (

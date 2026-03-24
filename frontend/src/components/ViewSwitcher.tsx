@@ -5,9 +5,10 @@ type ViewSwitcherProps = {
   isCollapsed: boolean;
   onChange: (view: ViewMode) => void;
   onToggleCollapse: () => void;
+  onNewChat?: () => void;
 };
 
-export function ViewSwitcher({ activeView, isCollapsed, onChange, onToggleCollapse }: ViewSwitcherProps) {
+export function ViewSwitcher({ activeView, isCollapsed, onChange, onToggleCollapse, onNewChat }: ViewSwitcherProps) {
   const workspaceItems: Array<{ view: ViewMode; title: string; copy: string; icon: string }> = [
     { view: "chat", title: "Chat", copy: "Plain text", icon: "edit_note" },
     { view: "study", title: "Study", copy: "Guide builder", icon: "menu_book" },
@@ -27,6 +28,7 @@ export function ViewSwitcher({ activeView, isCollapsed, onChange, onToggleCollap
           className="sidebar-toggle"
           onClick={onToggleCollapse}
           aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          data-tooltip={isCollapsed ? "Expand sidebar" : undefined}
         >
           <span className="material-symbols-outlined" aria-hidden="true">
             {isCollapsed ? "menu" : "menu_open"}
@@ -43,6 +45,7 @@ export function ViewSwitcher({ activeView, isCollapsed, onChange, onToggleCollap
             onClick={() => onChange(item.view)}
             title={isCollapsed ? item.title : undefined}
             aria-label={item.title}
+            data-tooltip={isCollapsed ? item.title : undefined}
           >
             <span className="view-icon" aria-hidden="true">
               <span className="material-symbols-outlined">{item.icon}</span>
@@ -56,6 +59,24 @@ export function ViewSwitcher({ activeView, isCollapsed, onChange, onToggleCollap
           </button>
         ))}
       </nav>
+
+      {activeView === "chat" && onNewChat ? (
+        <div className="sidebar-utility">
+          <button
+            type="button"
+            className="sidebar-utility-button"
+            onClick={onNewChat}
+            aria-label="Start a new chat"
+            title={isCollapsed ? "New chat" : undefined}
+            data-tooltip={isCollapsed ? "New chat" : undefined}
+          >
+            <span className="material-symbols-outlined" aria-hidden="true">
+              add_comment
+            </span>
+            {!isCollapsed ? <span>New chat</span> : null}
+          </button>
+        </div>
+      ) : null}
     </aside>
   );
 }
