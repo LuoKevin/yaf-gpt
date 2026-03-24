@@ -379,7 +379,6 @@ button {
 }
 
 .surface-pill,
-.status-pill,
 .context-chip {
   display: inline-flex;
   align-items: center;
@@ -395,30 +394,6 @@ button {
   color: var(--text-muted);
   font-size: 0.74rem;
   font-weight: 600;
-}
-
-.status-pill {
-  gap: 8px;
-  background: var(--surface-inset);
-  color: var(--text);
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-}
-
-.status-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #8e8ea0;
-}
-
-.status-pill.online .status-dot {
-  background: #8f8fa1;
-}
-
-.status-pill.offline .status-dot {
-  background: #ffb4ab;
 }
 
 .workspace {

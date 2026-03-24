@@ -14,7 +14,6 @@ import {
 } from "./lib/api";
 import type {
   BiblePassageResponse,
-  HealthStatus,
   MusicGenerateResponse,
   MusicJobResponse,
   PassageImageResponse,
@@ -36,8 +35,6 @@ export default function App() {
   const [goals, setGoals] = useState("");
   const [userNotes, setUserNotes] = useState("");
   const [includeQuestionNotes, setIncludeQuestionNotes] = useState(false);
-
-  const [healthStatus, setHealthStatus] = useState<HealthStatus>("checking");
 
   const [passage, setPassage] = useState<BiblePassageResponse | null>(null);
   const [studyPlan, setStudyPlan] = useState<StudyPlanResponse | null>(null);
@@ -80,29 +77,6 @@ export default function App() {
   const [musicJob, setMusicJob] = useState<MusicJobResponse | null>(null);
   const [musicError, setMusicError] = useState("");
   const [isGeneratingMusic, setIsGeneratingMusic] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function checkHealth() {
-      try {
-        await requestJson<{ status: string }>("/health");
-        if (!cancelled) {
-          setHealthStatus("online");
-        }
-      } catch {
-        if (!cancelled) {
-          setHealthStatus("offline");
-        }
-      }
-    }
-
-    void checkHealth();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   const musicJobId = musicResult?.job_id ?? null;
   const musicJobStatus = musicJob?.status ?? musicResult?.status ?? null;
@@ -907,12 +881,6 @@ export default function App() {
             </div>
           </div>
 
-          <div className="app-topbar-meta">
-            <div className={`status-pill ${healthStatus}`}>
-              <span className="status-dot" />
-              <span>{healthStatus.toUpperCase()}</span>
-            </div>
-          </div>
         </header>
 
         <main
