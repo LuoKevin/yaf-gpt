@@ -19,6 +19,7 @@ import type {
   PassageImageResponse,
   PersonaChatMessage,
   RealtimeVoice,
+  SseEventPayload,
   TranslationCode,
   ViewMode,
   VoiceRealtimeSessionResponse,
@@ -446,7 +447,7 @@ export default function App() {
             translation
           })
         },
-        ({ event, data }) => {
+        ({ event, data }: SseEventPayload) => {
           if (event === "meta") {
             if (
               typeof data === "object" &&
