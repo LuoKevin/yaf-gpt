@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import json
 import unittest
 
 from backend.services.voice_chat.generation import VoiceGenerationService
+from backend.services.voice_chat.generation.providers import ModalVoiceGenerationProvider
 
 
 class _FakeSpeechResponse:
@@ -33,6 +35,14 @@ class _FakeOpenAIClient:
         self.error_message = error_message
         self.last_kwargs = None
         self.audio = _FakeOpenAIClient._Audio(self)
+
+
+class _FakeUrlopenResponse:
+    def __init__(self, payload: bytes) -> None:
+        self._payload = payload
+
+    def read(self) -> bytes:
+        return self._payload
 
 
 class VoiceGenerationServiceTests(unittest.TestCase):
@@ -83,6 +93,55 @@ class VoiceGenerationServiceTests(unittest.TestCase):
 
         with self.assertRaises(RuntimeError):
             service.generate_audio(input_text="hello", voice="alloy")
+
+    def test_modal_provider_posts_to_remote_endpoint(self) -> None:
+        captured: dict[str, object] = {}
+
+        def fake_urlopen(request, timeout=0):
+            captured["url"] = request.full_url
+            captured["timeout"] = timeout
+            captured["headers"] = dict(request.header_items())
+            captured["body"] = json.loads(request.data.decode("utf-8"))
+            return _FakeUrlopenResponse(b"modal-audio")
+
+        provider = ModalVoiceGenerationProvider(
+            base_url="https://modal.example/generate",
+            model="chatterbox-turbo-modal",
+            voice_prompt_name="Lucy.wav",
+            bearer_token="secret-token",
+            request_opener=fake_urlopen,
+        )
+        service = VoiceGenerationService(provider=provider)
+
+        result = service.generate_audio(
+            input_text=" Read this aloud. ",
+            voice="alloy",
+            response_format="wav",
+        )
+
+        self.assertEqual(result.audio_bytes, b"modal-audio")
+        self.assertEqual(result.mime_type, "audio/wav")
+        self.assertEqual(result.model, "chatterbox-turbo-modal")
+        self.assertEqual(captured["url"], "https://modal.example/generate")
+        self.assertEqual(captured["timeout"], 60)
+        self.assertEqual(captured["body"], {
+            "input_text": "Read this aloud.",
+            "voice_prompt_name": "Lucy.wav",
+            "voice": "alloy",
+            "instructions": None,
+            "speed": 1.0,
+        })
+        self.assertIn(("Authorization", "Bearer secret-token"), captured["headers"].items())
+
+    def test_modal_provider_rejects_non_wav_output(self) -> None:
+        provider = ModalVoiceGenerationProvider(
+            base_url="https://modal.example/generate",
+            request_opener=lambda *args, **kwargs: _FakeUrlopenResponse(b"unused"),
+        )
+        service = VoiceGenerationService(provider=provider)
+
+        with self.assertRaises(RuntimeError):
+            service.generate_audio(input_text="hello", voice="alloy", response_format="mp3")
 
 
 if __name__ == "__main__":

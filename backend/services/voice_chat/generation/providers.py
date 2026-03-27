@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Callable, Optional
+from urllib import error as urllib_error
+from urllib import request as urllib_request
 
 from .domain import DEFAULT_VOICE_GENERATION_MODEL, SUPPORTED_RESPONSE_FORMATS
 
@@ -124,11 +127,84 @@ class SelfHostedVoiceGenerationProvider:
         raise RuntimeError("Self-hosted voice generation provider is not implemented yet.")
 
 
+class ModalVoiceGenerationProvider:
+    def __init__(
+        self,
+        *,
+        base_url: Optional[str] = None,
+        model: Optional[str] = None,
+        voice_prompt_name: Optional[str] = None,
+        bearer_token: Optional[str] = None,
+        request_opener: Optional[Callable[..., object]] = None,
+    ) -> None:
+        _load_backend_env()
+        self._base_url = (base_url or os.getenv("MODAL_VOICE_GENERATION_URL") or "").strip()
+        self.model_name = model or os.getenv("MODAL_VOICE_GENERATION_MODEL") or "chatterbox-turbo-modal"
+        self._voice_prompt_name = (
+            voice_prompt_name
+            or os.getenv("MODAL_VOICE_PROMPT_NAME")
+            or "Lucy.wav"
+        ).strip()
+        self._bearer_token = (bearer_token or os.getenv("MODAL_VOICE_GENERATION_TOKEN") or "").strip()
+        self._request_opener = request_opener or urllib_request.urlopen
+        if not self._base_url:
+            raise RuntimeError("MODAL_VOICE_GENERATION_URL is not set")
+
+    def generate_audio(
+        self,
+        *,
+        input_text: str,
+        voice: str,
+        instructions: str | None,
+        response_format: str,
+        speed: float,
+    ) -> bytes:
+        if response_format != "wav":
+            raise RuntimeError("Modal voice generation currently supports only wav output.")
+
+        payload = {
+            "input_text": input_text,
+            "voice_prompt_name": self._voice_prompt_name,
+            # Keep these in the payload for future provider-side expansion.
+            "voice": voice,
+            "instructions": instructions,
+            "speed": speed,
+        }
+        body = json.dumps(payload).encode("utf-8")
+        headers = {
+            "Content-Type": "application/json",
+            "Accept": "audio/wav",
+        }
+        if self._bearer_token:
+            headers["Authorization"] = f"Bearer {self._bearer_token}"
+
+        request = urllib_request.Request(
+            self._base_url,
+            data=body,
+            headers=headers,
+            method="POST",
+        )
+
+        try:
+            response = self._request_opener(request, timeout=60)
+        except urllib_error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="ignore").strip()
+            raise RuntimeError(detail or f"Modal voice generation failed with status {exc.code}.") from exc
+        except urllib_error.URLError as exc:
+            raise RuntimeError(f"Unable to reach Modal voice generation endpoint: {exc.reason}") from exc
+        except Exception as exc:
+            raise RuntimeError(str(exc)) from exc
+
+        return _extract_audio_bytes(response)
+
+
 def build_voice_generation_provider_from_env() -> object:
     _load_backend_env()
     provider = (os.getenv("VOICE_GENERATION_PROVIDER") or "openai").strip().lower()
     if provider == "openai":
         return OpenAIVoiceGenerationProvider()
+    if provider == "modal":
+        return ModalVoiceGenerationProvider()
     if provider in {"self_hosted", "self-hosted"}:
         return SelfHostedVoiceGenerationProvider()
     raise RuntimeError(f"Unsupported VOICE_GENERATION_PROVIDER '{provider}'.")
