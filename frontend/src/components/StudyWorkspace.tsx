@@ -105,8 +105,6 @@ type StudyWorkspaceProps = {
   reference: string;
   translation: TranslationCode;
   goals: string;
-  userNotes: string;
-  includeQuestionNotes: boolean;
   passage: BiblePassageResponse | null;
   studyPlan: StudyPlanResponse | null;
   passageError: string;
@@ -120,8 +118,6 @@ type StudyWorkspaceProps = {
   onReferenceChange: (value: string) => void;
   onTranslationChange: (value: TranslationCode) => void;
   onGoalsChange: (value: string) => void;
-  onUserNotesChange: (value: string) => void;
-  onIncludeQuestionNotesChange: (value: boolean) => void;
   onFetchPassage: () => void;
   onGeneratePlan: () => void;
   onGenerateImage: () => void;
@@ -130,8 +126,6 @@ type StudyWorkspaceProps = {
 export function StudyWorkspace({
   reference,
   goals,
-  userNotes,
-  includeQuestionNotes,
   passage,
   studyPlan,
   passageError,
@@ -144,8 +138,6 @@ export function StudyWorkspace({
   hasUsage,
   onReferenceChange,
   onGoalsChange,
-  onUserNotesChange,
-  onIncludeQuestionNotesChange,
   onFetchPassage,
   onGeneratePlan,
   onGenerateImage
@@ -316,7 +308,14 @@ export function StudyWorkspace({
             onClick={onFetchPassage}
             disabled={isLoadingPassage || !canSubmitReference}
           >
-            {isLoadingPassage ? "Loading..." : "Fetch passage"}
+            {isLoadingPassage ? (
+              <>
+                <span className="loading-spinner" aria-hidden="true" />
+                <span>Loading...</span>
+              </>
+            ) : (
+              "Fetch passage"
+            )}
           </button>
         </div>
 
@@ -333,20 +332,42 @@ export function StudyWorkspace({
             <input value={goals} onChange={(event) => onGoalsChange(event.target.value)} placeholder="Set your intention..." />
           </label>
           <button type="button" className="secondary-button" onClick={onGeneratePlan} disabled={isLoadingStudyPlan}>
-            {isLoadingStudyPlan ? "Generating..." : "Get study"}
+            {isLoadingStudyPlan ? (
+              <>
+                <span className="loading-spinner" aria-hidden="true" />
+                <span>Generating...</span>
+              </>
+            ) : (
+              "Get study"
+            )}
           </button>
           <button type="button" className="ghost-button" onClick={onGenerateImage} disabled={isLoadingPassageImage}>
-            {isLoadingPassageImage ? "Generating..." : "Generate image"}
+            {isLoadingPassageImage ? (
+              <>
+                <span className="loading-spinner" aria-hidden="true" />
+                <span>Generating...</span>
+              </>
+            ) : (
+              "Generate image"
+            )}
           </button>
         </div>
 
         {passageError ? <p className="error-banner">{passageError}</p> : null}
 
-        <article className="study-passage-sheet">
-          {passage ? (
+        <article className="study-passage-sheet study-passage-sheet-compact">
+          {isLoadingPassage ? (
+            <div className="loading-panel">
+              <span className="loading-spinner" aria-hidden="true" />
+              <p className="empty-state">Loading passage...</p>
+            </div>
+          ) : passage ? (
             <>
               <div className="study-passage-heading">
-                <p className="section-label">Passage</p>
+                <div>
+                  <p className="section-label">Passage reference</p>
+                  <h3>{passage.reference}</h3>
+                </div>
                 <span className="surface-pill">{passage.translation}</span>
               </div>
               {passage.verses.length > 0 ? (
@@ -366,10 +387,9 @@ export function StudyWorkspace({
             <p className="empty-state">Fetch a passage to begin the study workspace.</p>
           )}
         </article>
-      </div>
 
-      <aside className="study-side-column">
-        <article className="prototype-card">
+        <div className="study-feature-grid">
+          <article className="prototype-card study-plan-card">
           <div className="card-header">
             <div>
               <p className="section-label">Study plan</p>
@@ -380,7 +400,12 @@ export function StudyWorkspace({
 
           {studyPlanError ? <p className="error-banner">{studyPlanError}</p> : null}
 
-          {studyPlan ? (
+          {isLoadingStudyPlan ? (
+            <div className="loading-panel">
+              <span className="loading-spinner" aria-hidden="true" />
+              <p className="empty-state">Generating study plan...</p>
+            </div>
+          ) : studyPlan ? (
             <div className="card-stack">
               <section>
                 <h4>Context</h4>
@@ -426,47 +451,32 @@ export function StudyWorkspace({
           ) : (
             <p className="empty-state">Generate a study plan after setting your passage and goal.</p>
           )}
-        </article>
+          </article>
 
-        <article className="prototype-card">
-          <div className="card-header">
-            <div>
-              <p className="section-label">Visual context</p>
-              <h3>{passageImage ? "Generated image" : "Awaiting image"}</h3>
+          <article className="prototype-card study-image-card">
+            <div className="card-header">
+              <div>
+                <p className="section-label">Visual context</p>
+                <h3>{passageImage ? "Generated image" : "Awaiting image"}</h3>
+              </div>
             </div>
-          </div>
-          {passageImageError ? <p className="error-banner">{passageImageError}</p> : null}
-          {passageImage ? (
-            <div className="card-stack">
-              <img className="image-preview" src={passageImage.image_b64_or_url} alt={passageImage.alt_text} />
-              <p className="prompt-note">{passageImage.alt_text}</p>
-            </div>
-          ) : (
-            <p className="empty-state">Generate an image to add a visual metaphor for the passage.</p>
-          )}
-        </article>
-
-        <article className="prototype-card">
-          <div className="card-header">
-            <div>
-              <p className="section-label">Personal notes</p>
-              <h3>Marginalia</h3>
-            </div>
-          </div>
-          <label className="field">
-            <span>Notes</span>
-            <textarea rows={6} value={userNotes} onChange={(event) => onUserNotesChange(event.target.value)} placeholder="Pen your insights here..." />
-          </label>
-          <label className="toggle-row">
-            <span>Include question notes</span>
-            <input
-              type="checkbox"
-              checked={includeQuestionNotes}
-              onChange={(event) => onIncludeQuestionNotesChange(event.target.checked)}
-            />
-          </label>
-        </article>
-      </aside>
+            {passageImageError ? <p className="error-banner">{passageImageError}</p> : null}
+            {isLoadingPassageImage ? (
+              <div className="loading-panel">
+                <span className="loading-spinner" aria-hidden="true" />
+                <p className="empty-state">Generating image...</p>
+              </div>
+            ) : passageImage ? (
+              <div className="card-stack">
+                <img className="image-preview" src={passageImage.image_b64_or_url} alt={passageImage.alt_text} />
+                <p className="prompt-note">{passageImage.alt_text}</p>
+              </div>
+            ) : (
+              <p className="empty-state">Generate an image to add a visual metaphor for the passage.</p>
+            )}
+          </article>
+        </div>
+      </div>
     </section>
   );
 }

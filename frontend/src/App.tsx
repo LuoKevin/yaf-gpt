@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 
 import { DiscussionWorkspace } from "./components/DiscussionWorkspace";
 import { MusicWorkspace } from "./components/MusicWorkspace";
@@ -48,21 +48,26 @@ export default function App() {
   const [passageImageError, setPassageImageError] = useState("");
   const [isLoadingPassageImage, setIsLoadingPassageImage] = useState(false);
 
-  const [personaInput, setPersonaInput] = useState("");
-  const [personaMessages, setPersonaMessages] = useState<PersonaChatMessage[]>([]);
-  const [personaModel, setPersonaModel] = useState<string | null>(null);
-  const [personaError, setPersonaError] = useState("");
-  const [isSendingPersona, setIsSendingPersona] = useState(false);
-  const [isRecordingPersona, setIsRecordingPersona] = useState(false);
-  const [isTranscribingPersona, setIsTranscribingPersona] = useState(false);
-  const [enableVoiceReply, setEnableVoiceReply] = useState(true);
+  const [chatInput, setChatInput] = useState("");
+  const [chatMessages, setChatMessages] = useState<PersonaChatMessage[]>([]);
+  const [chatModel, setChatModel] = useState<string | null>(null);
+  const [chatError, setChatError] = useState("");
+  const [isSendingChat, setIsSendingChat] = useState(false);
+
+  const [discussionMessages, setDiscussionMessages] = useState<PersonaChatMessage[]>([]);
+  const [discussionModel, setDiscussionModel] = useState<string | null>(null);
+  const [discussionError, setDiscussionError] = useState("");
+  const [isSendingDiscussion, setIsSendingDiscussion] = useState(false);
+  const [isRecordingDiscussion, setIsRecordingDiscussion] = useState(false);
+  const [isTranscribingDiscussion, setIsTranscribingDiscussion] = useState(false);
+  const [enableDiscussionVoiceReply, setEnableDiscussionVoiceReply] = useState(true);
   const [isRealtimeVoiceConnecting, setIsRealtimeVoiceConnecting] = useState(false);
   const [isRealtimeVoiceActive, setIsRealtimeVoiceActive] = useState(false);
   const [realtimeVoiceStatus, setRealtimeVoiceStatus] = useState("");
 
-  const personaRecorderRef = useRef<MediaRecorder | null>(null);
-  const personaStreamRef = useRef<MediaStream | null>(null);
-  const personaChunksRef = useRef<Blob[]>([]);
+  const discussionRecorderRef = useRef<MediaRecorder | null>(null);
+  const discussionStreamRef = useRef<MediaStream | null>(null);
+  const discussionChunksRef = useRef<Blob[]>([]);
   const realtimePeerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const realtimeDataChannelRef = useRef<RTCDataChannel | null>(null);
   const realtimeLocalStreamRef = useRef<MediaStream | null>(null);
@@ -115,13 +120,13 @@ export default function App() {
     };
   }, [musicJobId, musicJobStatus]);
 
-  function releasePersonaMediaResources() {
-    if (personaStreamRef.current) {
-      personaStreamRef.current.getTracks().forEach((track) => track.stop());
+  function releaseDiscussionMediaResources() {
+    if (discussionStreamRef.current) {
+      discussionStreamRef.current.getTracks().forEach((track) => track.stop());
     }
-    personaStreamRef.current = null;
-    personaRecorderRef.current = null;
-    personaChunksRef.current = [];
+    discussionStreamRef.current = null;
+    discussionRecorderRef.current = null;
+    discussionChunksRef.current = [];
   }
 
   function getRealtimeAudioElement() {
@@ -166,7 +171,7 @@ export default function App() {
     }
 
     realtimeUserTranscriptItemIdsRef.current.add(itemId);
-    setPersonaMessages((current) => [...current, { role: "user", content: cleaned }]);
+    setDiscussionMessages((current) => [...current, { role: "user", content: cleaned }]);
   }
 
   function appendRealtimeAssistantDelta(itemId: string, delta: string) {
@@ -174,7 +179,7 @@ export default function App() {
       return;
     }
 
-    setPersonaMessages((current) => {
+    setDiscussionMessages((current) => {
       if (realtimeAssistantItemIdRef.current !== itemId) {
         realtimeAssistantItemIdRef.current = itemId;
         return [...current, { role: "assistant", content: delta }];
@@ -206,7 +211,7 @@ export default function App() {
       return;
     }
 
-    setPersonaMessages((current) => {
+    setDiscussionMessages((current) => {
       if (current.length === 0) {
         return [{ role: "assistant", content: cleaned }];
       }
@@ -240,7 +245,7 @@ export default function App() {
     }
 
     if (eventType === "session.created" || eventType === "session.updated") {
-      setPersonaModel(model);
+      setDiscussionModel(model);
       setRealtimeVoiceStatus(`Live voice connected on ${model} (${voice}).`);
       return;
     }
@@ -281,21 +286,21 @@ export default function App() {
         typeof event.error.message === "string"
           ? event.error.message
           : "Realtime voice session failed.";
-      setPersonaError(detail);
+      setDiscussionError(detail);
       stopRealtimeVoiceSession();
     }
   }
 
   useEffect(() => {
     return () => {
-      if (personaRecorderRef.current && personaRecorderRef.current.state !== "inactive") {
-        personaRecorderRef.current.stop();
+      if (discussionRecorderRef.current && discussionRecorderRef.current.state !== "inactive") {
+        discussionRecorderRef.current.stop();
       }
       stopRealtimeVoiceSession();
       if (typeof window !== "undefined" && "speechSynthesis" in window) {
         window.speechSynthesis.cancel();
       }
-      releasePersonaMediaResources();
+      releaseDiscussionMediaResources();
     };
   }, []);
 
@@ -403,9 +408,9 @@ export default function App() {
     }
   }
 
-  function speakPersonaReply(replyText: string) {
+  function speakDiscussionReply(replyText: string) {
     const cleaned = replyText.trim();
-    if (!cleaned || !enableVoiceReply) {
+    if (!cleaned || !enableDiscussionVoiceReply) {
       return;
     }
     if (typeof window === "undefined" || !("speechSynthesis" in window)) {
@@ -418,17 +423,33 @@ export default function App() {
     window.speechSynthesis.speak(utterance);
   }
 
-  async function sendPersonaMessage(rawMessage: string) {
+  async function streamWorkspaceMessage({
+    rawMessage,
+    currentMessages,
+    setMessages,
+    setError,
+    setIsSending,
+    setModel,
+    onReplyFinished,
+  }: {
+    rawMessage: string;
+    currentMessages: PersonaChatMessage[];
+    setMessages: Dispatch<SetStateAction<PersonaChatMessage[]>>;
+    setError: Dispatch<SetStateAction<string>>;
+    setIsSending: Dispatch<SetStateAction<boolean>>;
+    setModel: Dispatch<SetStateAction<string | null>>;
+    onReplyFinished?: (replyText: string) => void;
+  }) {
     const userMessage = rawMessage.trim();
     if (!userMessage) {
-      setPersonaError("Type a message.");
+      setError("Type a message.");
       return;
     }
 
-    const nextMessages = [...personaMessages, { role: "user", content: userMessage } as PersonaChatMessage];
-    setPersonaMessages([...nextMessages, { role: "assistant", content: "" }]);
-    setPersonaError("");
-    setIsSendingPersona(true);
+    const nextMessages = [...currentMessages, { role: "user", content: userMessage } as PersonaChatMessage];
+    setMessages([...nextMessages, { role: "assistant", content: "" }]);
+    setError("");
+    setIsSending(true);
 
     try {
       let streamedModel: string | null = null;
@@ -442,9 +463,7 @@ export default function App() {
             "Content-Type": "application/json"
           },
           body: JSON.stringify({
-            messages: nextMessages,
-            reference_context: reference.trim() || undefined,
-            translation
+            messages: nextMessages
           })
         },
         ({ event, data }: SseEventPayload) => {
@@ -471,7 +490,7 @@ export default function App() {
             if (delta && delta.length > 0) {
               assistantReply += delta;
               receivedChunk = true;
-              setPersonaMessages((current) => {
+              setMessages((current) => {
                 if (current.length === 0) {
                   return [{ role: "assistant", content: delta }];
                 }
@@ -502,10 +521,10 @@ export default function App() {
       );
 
       if (streamedModel) {
-        setPersonaModel(streamedModel);
+        setModel(streamedModel);
       }
       if (!receivedChunk) {
-        setPersonaMessages((current) => {
+        setMessages((current) => {
           if (current.length === 0) {
             return current;
           }
@@ -515,13 +534,11 @@ export default function App() {
           }
           return current;
         });
-      } else {
-        if (activeView !== "chat") {
-          speakPersonaReply(assistantReply);
-        }
+      } else if (onReplyFinished) {
+        onReplyFinished(assistantReply);
       }
     } catch (error) {
-      setPersonaMessages((current) => {
+      setMessages((current) => {
         if (current.length === 0) {
           return current;
         }
@@ -531,25 +548,44 @@ export default function App() {
         }
         return current;
       });
-      setPersonaError(error instanceof Error ? error.message : "Unable to send message.");
+      setError(error instanceof Error ? error.message : "Unable to send message.");
     } finally {
-      setIsSendingPersona(false);
+      setIsSending(false);
     }
   }
 
-  async function handlePersonaSend() {
-    const userMessage = personaInput.trim();
+  async function handleTextChatSend() {
+    const userMessage = chatInput.trim();
     if (!userMessage) {
-      setPersonaError("Type a message.");
+      setChatError("Type a message.");
       return;
     }
-    setPersonaInput("");
-    await sendPersonaMessage(userMessage);
+    setChatInput("");
+    await streamWorkspaceMessage({
+      rawMessage: userMessage,
+      currentMessages: chatMessages,
+      setMessages: setChatMessages,
+      setError: setChatError,
+      setIsSending: setIsSendingChat,
+      setModel: setChatModel,
+    });
   }
 
-  async function transcribePersonaRecording(blob: Blob) {
-    setIsTranscribingPersona(true);
-    setPersonaError("");
+  async function sendDiscussionMessage(rawMessage: string) {
+    await streamWorkspaceMessage({
+      rawMessage,
+      currentMessages: discussionMessages,
+      setMessages: setDiscussionMessages,
+      setError: setDiscussionError,
+      setIsSending: setIsSendingDiscussion,
+      setModel: setDiscussionModel,
+      onReplyFinished: speakDiscussionReply,
+    });
+  }
+
+  async function transcribeDiscussionRecording(blob: Blob) {
+    setIsTranscribingDiscussion(true);
+    setDiscussionError("");
 
     try {
       const audioBase64 = await blobToDataUrl(blob);
@@ -565,24 +601,24 @@ export default function App() {
         })
       });
 
-      await sendPersonaMessage(response.transcript);
+      await sendDiscussionMessage(response.transcript);
     } catch (error) {
-      setPersonaError(error instanceof Error ? error.message : "Unable to process recorded audio.");
+      setDiscussionError(error instanceof Error ? error.message : "Unable to process recorded audio.");
     } finally {
-      setIsTranscribingPersona(false);
+      setIsTranscribingDiscussion(false);
     }
   }
 
-  async function startPersonaRecording() {
-    if (isRecordingPersona || isSendingPersona || isTranscribingPersona) {
+  async function startDiscussionRecording() {
+    if (isRecordingDiscussion || isSendingDiscussion || isTranscribingDiscussion) {
       return;
     }
     if (typeof window === "undefined" || typeof MediaRecorder === "undefined") {
-      setPersonaError("Voice input is not supported in this browser.");
+      setDiscussionError("Voice input is not supported in this browser.");
       return;
     }
     if (!navigator.mediaDevices?.getUserMedia) {
-      setPersonaError("Microphone access is not available in this browser.");
+      setDiscussionError("Microphone access is not available in this browser.");
       return;
     }
 
@@ -595,68 +631,68 @@ export default function App() {
         ? new MediaRecorder(stream, { mimeType: preferredMimeType })
         : new MediaRecorder(stream);
 
-      personaStreamRef.current = stream;
-      personaRecorderRef.current = recorder;
-      personaChunksRef.current = [];
+      discussionStreamRef.current = stream;
+      discussionRecorderRef.current = recorder;
+      discussionChunksRef.current = [];
 
       recorder.ondataavailable = (event) => {
         if (event.data && event.data.size > 0) {
-          personaChunksRef.current.push(event.data);
+          discussionChunksRef.current.push(event.data);
         }
       };
 
       recorder.onerror = () => {
-        setPersonaError("Recording failed.");
-        setIsRecordingPersona(false);
-        releasePersonaMediaResources();
+        setDiscussionError("Recording failed.");
+        setIsRecordingDiscussion(false);
+        releaseDiscussionMediaResources();
       };
 
       recorder.onstop = () => {
-        const chunks = [...personaChunksRef.current];
+        const chunks = [...discussionChunksRef.current];
         const blobType = recorder.mimeType || "audio/webm";
-        setIsRecordingPersona(false);
-        releasePersonaMediaResources();
+        setIsRecordingDiscussion(false);
+        releaseDiscussionMediaResources();
 
         if (chunks.length === 0) {
-          setPersonaError("No audio captured.");
+          setDiscussionError("No audio captured.");
           return;
         }
 
         const recording = new Blob(chunks, { type: blobType });
-        void transcribePersonaRecording(recording);
+        void transcribeDiscussionRecording(recording);
       };
 
-      setPersonaError("");
+      setDiscussionError("");
       recorder.start();
-      setIsRecordingPersona(true);
+      setIsRecordingDiscussion(true);
     } catch (error) {
-      setPersonaError(error instanceof Error ? error.message : "Unable to access microphone.");
-      setIsRecordingPersona(false);
-      releasePersonaMediaResources();
+      setDiscussionError(error instanceof Error ? error.message : "Unable to access microphone.");
+      setIsRecordingDiscussion(false);
+      releaseDiscussionMediaResources();
     }
   }
 
-  function stopPersonaRecording() {
-    if (!personaRecorderRef.current || personaRecorderRef.current.state === "inactive") {
+  function stopDiscussionRecording() {
+    if (!discussionRecorderRef.current || discussionRecorderRef.current.state === "inactive") {
       return;
     }
-    personaRecorderRef.current.stop();
+    discussionRecorderRef.current.stop();
   }
 
   async function startRealtimeVoiceSession() {
-    if (isRealtimeVoiceActive || isRealtimeVoiceConnecting || isSendingPersona || isRecordingPersona || isTranscribingPersona) {
+    if (isRealtimeVoiceActive || isRealtimeVoiceConnecting || isSendingDiscussion || isRecordingDiscussion || isTranscribingDiscussion) {
       return;
     }
     if (typeof window === "undefined" || typeof RTCPeerConnection === "undefined") {
-      setPersonaError("Live voice requires WebRTC support in this browser.");
+      setDiscussionError("Live voice requires WebRTC support in this browser.");
       return;
     }
     if (!navigator.mediaDevices?.getUserMedia) {
-      setPersonaError("Microphone access is not available in this browser.");
+      setDiscussionError("Microphone access is not available in this browser.");
       return;
     }
 
-    setPersonaError("");
+    setDiscussionError("");
     setIsRealtimeVoiceConnecting(true);
     setRealtimeVoiceStatus("Connecting live voice...");
 
@@ -667,8 +703,6 @@ export default function App() {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          reference_context: reference.trim() || undefined,
-          translation,
           voice: "cedar"
         })
       });
@@ -699,7 +733,7 @@ export default function App() {
         if (state === "connected") {
           setIsRealtimeVoiceConnecting(false);
           setIsRealtimeVoiceActive(true);
-          setPersonaModel(session.model);
+          setDiscussionModel(session.model);
           setRealtimeVoiceStatus(`Live voice connected on ${session.model} (${session.voice}).`);
           return;
         }
@@ -707,7 +741,7 @@ export default function App() {
         if (state === "failed" || state === "closed" || state === "disconnected") {
           stopRealtimeVoiceSession();
           if (state === "failed") {
-            setPersonaError("Live voice connection dropped.");
+            setDiscussionError("Live voice connection dropped.");
           }
         }
       };
@@ -723,7 +757,7 @@ export default function App() {
         }
       };
       dataChannel.onerror = () => {
-        setPersonaError("Live voice event channel failed.");
+        setDiscussionError("Live voice event channel failed.");
       };
       dataChannel.onmessage = (messageEvent) => {
         try {
@@ -757,7 +791,7 @@ export default function App() {
       });
     } catch (error) {
       stopRealtimeVoiceSession();
-      setPersonaError(error instanceof Error ? error.message : "Unable to start live voice.");
+      setDiscussionError(error instanceof Error ? error.message : "Unable to start live voice.");
     } finally {
       setIsRealtimeVoiceConnecting(false);
     }
@@ -772,21 +806,29 @@ export default function App() {
     await startRealtimeVoiceSession();
   }
 
-  function handlePersonaReset() {
-    if (personaRecorderRef.current && personaRecorderRef.current.state !== "inactive") {
-      personaRecorderRef.current.stop();
+  function handleDiscussionReset() {
+    if (discussionRecorderRef.current && discussionRecorderRef.current.state !== "inactive") {
+      discussionRecorderRef.current.stop();
     }
     stopRealtimeVoiceSession();
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
       window.speechSynthesis.cancel();
     }
-    releasePersonaMediaResources();
-    setPersonaMessages([]);
-    setPersonaModel(null);
-    setPersonaError("");
-    setPersonaInput("");
-    setIsRecordingPersona(false);
-    setIsTranscribingPersona(false);
+    releaseDiscussionMediaResources();
+    setDiscussionMessages([]);
+    setDiscussionModel(null);
+    setDiscussionError("");
+    setIsSendingDiscussion(false);
+    setIsRecordingDiscussion(false);
+    setIsTranscribingDiscussion(false);
+  }
+
+  function handleTextChatReset() {
+    setChatMessages([]);
+    setChatModel(null);
+    setChatError("");
+    setChatInput("");
+    setIsSendingChat(false);
   }
 
   async function handleMusicGeneration() {
@@ -850,13 +892,13 @@ export default function App() {
   }, [activeView]);
   const activeViewCopy = useMemo(() => {
     if (activeView === "chat") {
-      return "Use a simpler ChatGPT-style text thread for quick questions, grounded by the same passage context and mentor behavior as the rest of the workspace.";
+      return "Use a simpler ChatGPT-style text thread for quick questions without carrying state from the other workspaces.";
     }
     if (activeView === "study") {
       return "Shape a sharper small-group guide with grounded context, discussion flow, and a companion passage image in one place.";
     }
     if (activeView === "discussion") {
-      return "Keep the mentor conversation focused, with typed chat, voice input, and live voice sessions built around the same passage context.";
+      return "Keep the mentor conversation voice-first, with recording, live voice, and an isolated transcript for this workspace only.";
     }
     return "Turn a passage direction into a more coherent music brief, then follow the job through to generated audio.";
   }, [activeView]);
@@ -868,7 +910,7 @@ export default function App() {
         isCollapsed={isSidebarCollapsed}
         onChange={setActiveView}
         onToggleCollapse={() => setIsSidebarCollapsed((current) => !current)}
-        onNewChat={handlePersonaReset}
+        onNewChat={handleTextChatReset}
       />
 
       <div className="shell-content">
@@ -889,13 +931,13 @@ export default function App() {
         >
           {activeView === "chat" ? (
             <TextChatWorkspace
-              personaModel={personaModel}
-              personaError={personaError}
-              personaMessages={personaMessages}
-              personaInput={personaInput}
-              isSendingPersona={isSendingPersona}
-              onPersonaInputChange={setPersonaInput}
-              onPersonaSend={handlePersonaSend}
+              personaModel={chatModel}
+              personaError={chatError}
+              personaMessages={chatMessages}
+              personaInput={chatInput}
+              isSendingPersona={isSendingChat}
+              onPersonaInputChange={setChatInput}
+              onPersonaSend={handleTextChatSend}
             />
           ) : null}
 
@@ -904,8 +946,6 @@ export default function App() {
               reference={reference}
               translation={translation}
               goals={goals}
-              userNotes={userNotes}
-              includeQuestionNotes={includeQuestionNotes}
               passage={passage}
               studyPlan={studyPlan}
               passageError={passageError}
@@ -919,8 +959,6 @@ export default function App() {
               onReferenceChange={setReference}
               onTranslationChange={setTranslation}
               onGoalsChange={setGoals}
-              onUserNotesChange={setUserNotes}
-              onIncludeQuestionNotesChange={setIncludeQuestionNotes}
               onFetchPassage={handlePassageLookup}
               onGeneratePlan={handleStudyPlanGeneration}
               onGenerateImage={handlePassageImageGeneration}
@@ -929,23 +967,20 @@ export default function App() {
 
           {activeView === "discussion" ? (
             <DiscussionWorkspace
-              personaModel={personaModel}
-              personaError={personaError}
-              personaMessages={personaMessages}
-              personaInput={personaInput}
-              enableVoiceReply={enableVoiceReply}
-              isSendingPersona={isSendingPersona}
-              isRecordingPersona={isRecordingPersona}
-              isTranscribingPersona={isTranscribingPersona}
+              personaModel={discussionModel}
+              personaError={discussionError}
+              personaMessages={discussionMessages}
+              enableVoiceReply={enableDiscussionVoiceReply}
+              isSendingPersona={isSendingDiscussion}
+              isRecordingPersona={isRecordingDiscussion}
+              isTranscribingPersona={isTranscribingDiscussion}
               isRealtimeVoiceConnecting={isRealtimeVoiceConnecting}
               isRealtimeVoiceActive={isRealtimeVoiceActive}
               realtimeVoiceStatus={realtimeVoiceStatus}
-              onPersonaInputChange={setPersonaInput}
-              onPersonaSend={handlePersonaSend}
-              onPersonaVoiceToggle={isRecordingPersona ? stopPersonaRecording : () => void startPersonaRecording()}
+              onPersonaVoiceToggle={isRecordingDiscussion ? stopDiscussionRecording : () => void startDiscussionRecording()}
               onRealtimeVoiceToggle={handleRealtimeVoiceToggle}
-              onPersonaReset={handlePersonaReset}
-              onEnableVoiceReplyChange={setEnableVoiceReply}
+              onPersonaReset={handleDiscussionReset}
+              onEnableVoiceReplyChange={setEnableDiscussionVoiceReply}
             />
           ) : null}
 

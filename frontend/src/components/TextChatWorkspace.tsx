@@ -50,21 +50,37 @@ export function TextChatWorkspace({
 
           <div className="chat-log">
             {personaMessages.length > 0 ? (
-              personaMessages.map((message, index) => (
-                <article key={`${message.role}-${index}`} className={`chat-message ${message.role}`}>
-                  {message.role === "assistant" ? (
-                    <div className="assistant-badge-row">
-                      <div className="assistant-avatar">
-                        <span className="material-symbols-outlined">auto_awesome</span>
+              <>
+                {personaMessages.map((message, index) => {
+                  const isStreamingAssistantPlaceholder =
+                    message.role === "assistant" &&
+                    isSendingPersona &&
+                    index === personaMessages.length - 1 &&
+                    message.content.trim().length === 0;
+
+                  return (
+                  <article key={`${message.role}-${index}`} className={`chat-message ${message.role}`}>
+                    {message.role === "assistant" ? (
+                      <div className="assistant-badge-row">
+                        <div className="assistant-avatar">
+                          <span className="material-symbols-outlined">auto_awesome</span>
+                        </div>
+                        <span className="assistant-label">YAF-GPT Assistant</span>
                       </div>
-                      <span className="assistant-label">YAF-GPT Assistant</span>
+                    ) : null}
+                    <div className="chat-message-body">
+                      {isStreamingAssistantPlaceholder ? (
+                        <div className="loading-inline">
+                          <span className="loading-spinner" aria-hidden="true" />
+                          <p>Thinking...</p>
+                        </div>
+                      ) : (
+                        <p>{message.content}</p>
+                      )}
                     </div>
-                  ) : null}
-                  <div className="chat-message-body">
-                    <p>{message.content}</p>
-                  </div>
-                </article>
-              ))
+                  </article>
+                )})}
+              </>
             ) : (
               <div className="chat-empty-state">
                 <p className="section-label">Start a conversation</p>
@@ -94,7 +110,14 @@ export function TextChatWorkspace({
               <p className="muted-text">Enter to send. Shift+Enter for a new line.</p>
             </div>
             <button type="button" className="primary-button" onClick={onPersonaSend} disabled={isSendingPersona}>
-              {isSendingPersona ? "Sending..." : "Send"}
+              {isSendingPersona ? (
+                <>
+                  <span className="loading-spinner" aria-hidden="true" />
+                  <span>Sending...</span>
+                </>
+              ) : (
+                "Send"
+              )}
             </button>
           </div>
         </div>
