@@ -23,20 +23,35 @@ export function ViewSwitcher({ activeView, isCollapsed, onChange, onToggleCollap
           <h1 className="sidebar-brand-title">YAF-GPT</h1>
           {!isCollapsed ? <p className="sidebar-copy">Digital Sanctuary</p> : null}
         </div>
-        <button
-          type="button"
-          className="sidebar-toggle"
-          onClick={onToggleCollapse}
-          aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-          data-tooltip={isCollapsed ? "Expand sidebar" : undefined}
-        >
-          <span className="material-symbols-outlined" aria-hidden="true">
-            {isCollapsed ? "menu" : "menu_open"}
-          </span>
-        </button>
+        {!isCollapsed ? (
+          <button
+            type="button"
+            className="sidebar-toggle"
+            onClick={onToggleCollapse}
+            aria-label="Collapse sidebar"
+          >
+            <span className="material-symbols-outlined" aria-hidden="true">
+              menu_open
+            </span>
+          </button>
+        ) : null}
       </div>
 
       <nav className="view-switcher" aria-label="Workspace selection">
+        {isCollapsed ? (
+          <button
+            type="button"
+            className="view-button sidebar-toggle-inline"
+            onClick={onToggleCollapse}
+            aria-label="Expand sidebar"
+            title="Expand sidebar"
+            data-tooltip="Expand sidebar"
+          >
+            <span className="view-icon" aria-hidden="true">
+              <span className="material-symbols-outlined">menu</span>
+            </span>
+          </button>
+        ) : null}
         {workspaceItems.map((item) => (
           <button
             key={item.view}
