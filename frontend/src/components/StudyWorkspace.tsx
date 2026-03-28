@@ -77,7 +77,7 @@ const BIBLE_BOOKS = [
 
 const PASSAGE_RANGE_PATTERN = /^\d{1,3}(?::\d{1,3})?(?:-\d{1,3}(?::\d{1,3})?)?$/;
 const PRESET_PASSAGES = [
-  { reference: "Matthew 5-7", label: "Matthew 5–7 — Sermon on the Mount" },
+  { reference: "Matthew 5", label: "Matthew 5 — Sermon on the Mount" },
   { reference: "Matthew 22:34-40", label: "Matthew 22:34–40 — Greatest Commandments" },
   { reference: "Luke 10:25-37", label: "Luke 10:25–37 — Good Samaritan" },
   { reference: "Luke 15:11-32", label: "Luke 15:11–32 — Prodigal Son" },

@@ -10,8 +10,10 @@ from urllib.parse import quote
 from urllib.request import Request, urlopen
 
 MAX_VERSE_COUNT = 60
+MAX_PASSAGE_TOKENS = 1000
 DEFAULT_BASE_URL = "https://bible-api.com"
 SUPPORTED_TRANSLATIONS = {"WEB": "web", "KJV": "kjv"}
+REFERENCE_SUFFIX_PATTERN = re.compile(r"\d+(?::\d+)?(?:-\d+(?::\d+)?)?$")
 
 
 class BibleLookupError(RuntimeError):
@@ -20,6 +22,10 @@ class BibleLookupError(RuntimeError):
 
 class InvalidReferenceError(BibleLookupError):
     """Invalid or oversized reference input."""
+
+
+class PassageTooLongError(InvalidReferenceError):
+    """Passage exceeds the allowed token budget."""
 
 
 class PassageNotFoundError(BibleLookupError):
@@ -57,10 +63,23 @@ def _normalize_reference(reference: str) -> str:
 
 
 def _validate_reference_shape(reference: str) -> None:
-    if not re.search(r"\d+:\d+", reference):
+    parts = reference.rsplit(" ", 1)
+    if len(parts) != 2 or not REFERENCE_SUFFIX_PATTERN.fullmatch(parts[1]):
         raise InvalidReferenceError(
-            "Reference must include chapter and verse, for example 'Luke 21:5-28'."
+            "Reference must include a chapter or verse range, for example 'Luke 21', 'Luke 21-22', or 'Luke 21:5-28'."
         )
+
+
+def _estimate_passage_tokens(text: str) -> int:
+    normalized = " ".join(text.split())
+    if not normalized:
+        return 0
+
+    # Conservative approximation for GPT-style tokenization on English prose.
+    word_count = len(re.findall(r"\b\w+[’']?\w*\b", normalized))
+    char_estimate = len(normalized) / 4
+    word_estimate = word_count * 1.35
+    return int(max(char_estimate, word_estimate) + 0.9999)
 
 
 class BibleAPIProvider:
@@ -70,10 +89,12 @@ class BibleAPIProvider:
         base_url: Optional[str] = None,
         timeout_seconds: float = 10.0,
         max_verse_count: int = MAX_VERSE_COUNT,
+        max_passage_tokens: int = MAX_PASSAGE_TOKENS,
     ) -> None:
         self._base_url = (base_url or os.getenv("BIBLE_API_BASE_URL") or DEFAULT_BASE_URL).rstrip("/")
         self._timeout_seconds = timeout_seconds
         self._max_verse_count = max_verse_count
+        self._max_passage_tokens = max_passage_tokens
 
     def get_passage(self, reference: str, translation: str = "WEB") -> PassageData:
         normalized_reference = _normalize_reference(reference)
@@ -123,6 +144,13 @@ class BibleAPIProvider:
 
         if not text:
             raise PassageNotFoundError(f"No passage text found for '{normalized_reference}'.")
+
+        estimated_tokens = _estimate_passage_tokens(text)
+        if estimated_tokens > self._max_passage_tokens:
+            raise PassageTooLongError(
+                "This passage is too long for a single study request. "
+                "Please choose a shorter passage or split it into smaller sections."
+            )
 
         response_reference = str(payload.get("reference") or normalized_reference)
         return PassageData(

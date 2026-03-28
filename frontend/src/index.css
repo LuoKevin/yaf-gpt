@@ -1034,6 +1034,7 @@ textarea {
 
 .study-book-selector {
   position: relative;
+  min-height: 48px;
   padding: 0 12px;
   border-radius: 14px;
   background: var(--surface-inset);
@@ -1043,7 +1044,7 @@ textarea {
 
 .study-book-selector:focus-within {
   background: #171717;
-  box-shadow: inset 0 0 0 1px rgba(197, 197, 216, 0.18);
+  box-shadow: none;
 }
 
 .study-selector-field input,
