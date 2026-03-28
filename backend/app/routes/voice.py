@@ -4,6 +4,7 @@ import base64
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
+from ..rate_limit import limit_requests
 from ...services.study_plan.bible_lookup import InvalidReferenceError, PassageNotFoundError
 from ...services.voice_chat import VoiceChatService, VoiceGenerationService, VoiceTranscriptionService
 from ..schemas import (
@@ -36,8 +37,10 @@ def get_voice_realtime_session_service() -> VoiceChatService:
     response_model=VoiceTranscriptionResponse,
     responses={
         400: {"model": APIErrorResponse},
+        429: {"model": APIErrorResponse},
         502: {"model": APIErrorResponse},
     },
+    dependencies=[Depends(limit_requests(bucket="voice-transcribe", max_requests=10))],
 )
 def transcribe_voice(
     payload: VoiceTranscriptionRequest,
@@ -65,8 +68,10 @@ def transcribe_voice(
     responses={
         400: {"model": APIErrorResponse},
         404: {"model": APIErrorResponse},
+        429: {"model": APIErrorResponse},
         502: {"model": APIErrorResponse},
     },
+    dependencies=[Depends(limit_requests(bucket="voice-realtime", max_requests=10))],
 )
 def create_realtime_voice_session(
     payload: VoiceRealtimeSessionRequest,
@@ -100,8 +105,10 @@ def create_realtime_voice_session(
     response_model=VoiceGenerationResponse,
     responses={
         400: {"model": APIErrorResponse},
+        429: {"model": APIErrorResponse},
         502: {"model": APIErrorResponse},
     },
+    dependencies=[Depends(limit_requests(bucket="voice-generate", max_requests=10))],
 )
 def generate_voice(
     payload: VoiceGenerationRequest,

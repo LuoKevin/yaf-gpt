@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
+from ..rate_limit import limit_requests
 from ...services.study_plan.bible_lookup import (
     InvalidReferenceError,
     PassageNotFoundError,
@@ -27,8 +28,10 @@ def get_study_plan_service() -> StudyPlanService:
     responses={
         400: {"model": APIErrorResponse},
         404: {"model": APIErrorResponse},
+        429: {"model": APIErrorResponse},
         502: {"model": APIErrorResponse},
     },
+    dependencies=[Depends(limit_requests(bucket="study-plan", max_requests=10))],
 )
 def create_study_plan(
     payload: StudyPlanRequest,

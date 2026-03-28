@@ -5,6 +5,7 @@ import json
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 
+from ..rate_limit import limit_requests
 from ...services.study_plan.bible_lookup import (
     InvalidReferenceError,
     PassageNotFoundError,
@@ -34,8 +35,10 @@ def _sse_event(event: str, payload: dict[str, object]) -> str:
     responses={
         400: {"model": APIErrorResponse},
         404: {"model": APIErrorResponse},
+        429: {"model": APIErrorResponse},
         502: {"model": APIErrorResponse},
     },
+    dependencies=[Depends(limit_requests(bucket="persona-chat", max_requests=20))],
 )
 def create_persona_chat(
     payload: PersonaChatRequest,
@@ -56,8 +59,10 @@ def create_persona_chat(
     responses={
         400: {"model": APIErrorResponse},
         404: {"model": APIErrorResponse},
+        429: {"model": APIErrorResponse},
         502: {"model": APIErrorResponse},
     },
+    dependencies=[Depends(limit_requests(bucket="persona-chat-stream", max_requests=12))],
 )
 def stream_persona_chat(
     payload: PersonaChatRequest,
