@@ -1,38 +1,32 @@
+import { useState } from "react";
+
 import type { PersonaChatMessage } from "../types";
 
 type DiscussionWorkspaceProps = {
   personaModel: string | null;
   personaError: string;
   personaMessages: PersonaChatMessage[];
-  enableVoiceReply: boolean;
   isSendingPersona: boolean;
-  isRecordingPersona: boolean;
   isTranscribingPersona: boolean;
   isRealtimeVoiceConnecting: boolean;
   isRealtimeVoiceActive: boolean;
   realtimeVoiceStatus: string;
-  onPersonaVoiceToggle: () => void;
   onRealtimeVoiceToggle: () => void | Promise<void>;
-  onPersonaReset: () => void;
-  onEnableVoiceReplyChange: (value: boolean) => void;
 };
 
 export function DiscussionWorkspace({
   personaModel,
   personaError,
   personaMessages,
-  enableVoiceReply,
   isSendingPersona,
-  isRecordingPersona,
   isTranscribingPersona,
   isRealtimeVoiceConnecting,
   isRealtimeVoiceActive,
   realtimeVoiceStatus,
-  onPersonaVoiceToggle,
-  onRealtimeVoiceToggle,
-  onPersonaReset,
-  onEnableVoiceReplyChange
+  onRealtimeVoiceToggle
 }: DiscussionWorkspaceProps) {
+  const [isTranscriptOpen, setIsTranscriptOpen] = useState(false);
+
   return (
     <section className="discussion-prototype">
       <div className="workspace-header workspace-header-centered">
@@ -83,17 +77,9 @@ export function DiscussionWorkspace({
         <div className="discussion-controls">
           <button
             type="button"
-            className="secondary-button round-button"
-            onClick={onPersonaVoiceToggle}
-            disabled={isSendingPersona || isTranscribingPersona || isRealtimeVoiceActive || isRealtimeVoiceConnecting}
-          >
-            <span className="material-symbols-outlined">{isRecordingPersona ? "stop" : "mic"}</span>
-          </button>
-          <button
-            type="button"
             className="danger-button call-button"
             onClick={onRealtimeVoiceToggle}
-            disabled={isSendingPersona || isRecordingPersona || isTranscribingPersona}
+            disabled={isSendingPersona || isTranscribingPersona}
           >
             {isRealtimeVoiceConnecting ? (
               <span className="loading-spinner" aria-hidden="true" />
@@ -108,21 +94,9 @@ export function DiscussionWorkspace({
                   : "Start live voice"}
             </span>
           </button>
-          <button type="button" className="secondary-button round-button" onClick={onPersonaReset}>
-            <span className="material-symbols-outlined">restart_alt</span>
-          </button>
         </div>
 
         <div className="discussion-voice-settings">
-          <label className="toggle-row">
-            <span>Voice reply</span>
-            <input
-              type="checkbox"
-              checked={enableVoiceReply}
-              onChange={(event) => onEnableVoiceReplyChange(event.target.checked)}
-            />
-          </label>
-          {isRecordingPersona ? <p className="muted-text">Recording...</p> : null}
           {isTranscribingPersona ? (
             <div className="loading-inline">
               <span className="loading-spinner" aria-hidden="true" />
@@ -132,27 +106,70 @@ export function DiscussionWorkspace({
         </div>
       </article>
 
-      <article className="prototype-card">
-        <div className="card-header">
-          <div>
-            <p className="section-label">Transcript</p>
-            <h3>Conversation thread</h3>
-          </div>
+      {!isTranscriptOpen ? (
+        <div className="discussion-transcript-collapsed">
+          <button
+            type="button"
+            className="ghost-button transcript-icon-button"
+            onClick={() => setIsTranscriptOpen(true)}
+            data-tooltip="Show transcript"
+            aria-label="Show transcript"
+          >
+            <span className="material-symbols-outlined" aria-hidden="true">
+              notes
+            </span>
+          </button>
         </div>
-        {personaMessages.length > 0 ? (
+      ) : (
+        <article className="prototype-card discussion-transcript-card">
+          <div className="card-header">
+            <div>
+              <p className="section-label">Transcript</p>
+              <h3>Conversation thread</h3>
+            </div>
+            <button
+              type="button"
+              className="ghost-button transcript-toggle-button"
+              onClick={() => setIsTranscriptOpen(false)}
+            >
+              <span className="material-symbols-outlined" aria-hidden="true">
+                expand_less
+              </span>
+              <span>Hide transcript</span>
+            </button>
+          </div>
+          {personaMessages.length > 0 ? (
           <div className="discussion-transcript-list">
             {personaMessages.map((message, index) => (
-              <article key={`${message.role}-${index}`} className={`chat-message ${message.role}`}>
-                <div className="chat-message-body">
+              <article key={`${message.role}-${index}`} className={`discussion-transcript-item ${message.role}`}>
+                <div className="discussion-transcript-meta">
+                  <span className="discussion-transcript-role">
+                    {message.role === "user" ? "You" : "YAF-GPT"}
+                  </span>
+                </div>
+                <div className="discussion-transcript-body">
                   <p>{message.content}</p>
                 </div>
               </article>
             ))}
+            {isTranscribingPersona || isSendingPersona || isRealtimeVoiceConnecting ? (
+              <div className="discussion-transcript-status">
+                <span className="loading-spinner" aria-hidden="true" />
+                <span>
+                  {isTranscribingPersona
+                    ? "Transcribing..."
+                    : isRealtimeVoiceConnecting
+                      ? "Connecting live voice..."
+                      : "Waiting for response..."}
+                </span>
+              </div>
+            ) : null}
           </div>
-        ) : (
-          <p className="empty-state">Record or start live voice to build the isolated discussion transcript.</p>
-        )}
-      </article>
+          ) : (
+            <p className="empty-state">Record or start live voice to build the isolated discussion transcript.</p>
+          )}
+        </article>
+      )}
     </section>
   );
 }

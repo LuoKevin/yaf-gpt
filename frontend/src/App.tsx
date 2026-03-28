@@ -60,7 +60,6 @@ export default function App() {
   const [isSendingDiscussion, setIsSendingDiscussion] = useState(false);
   const [isRecordingDiscussion, setIsRecordingDiscussion] = useState(false);
   const [isTranscribingDiscussion, setIsTranscribingDiscussion] = useState(false);
-  const [enableDiscussionVoiceReply, setEnableDiscussionVoiceReply] = useState(true);
   const [isRealtimeVoiceConnecting, setIsRealtimeVoiceConnecting] = useState(false);
   const [isRealtimeVoiceActive, setIsRealtimeVoiceActive] = useState(false);
   const [realtimeVoiceStatus, setRealtimeVoiceStatus] = useState("");
@@ -72,7 +71,7 @@ export default function App() {
   const realtimeDataChannelRef = useRef<RTCDataChannel | null>(null);
   const realtimeLocalStreamRef = useRef<MediaStream | null>(null);
   const realtimeAudioRef = useRef<HTMLAudioElement | null>(null);
-  const realtimeAssistantItemIdRef = useRef<string | null>(null);
+  const realtimeHasOpenAssistantMessageRef = useRef(false);
   const realtimeUserTranscriptItemIdsRef = useRef<Set<string>>(new Set());
   const realtimeFinalizedAssistantItemIdsRef = useRef<Set<string>>(new Set());
 
@@ -156,7 +155,7 @@ export default function App() {
       audio.srcObject = null;
     }
 
-    realtimeAssistantItemIdRef.current = null;
+    realtimeHasOpenAssistantMessageRef.current = false;
     realtimeUserTranscriptItemIdsRef.current.clear();
     realtimeFinalizedAssistantItemIdsRef.current.clear();
     setIsRealtimeVoiceConnecting(false);
@@ -180,18 +179,15 @@ export default function App() {
     }
 
     setDiscussionMessages((current) => {
-      if (realtimeAssistantItemIdRef.current !== itemId) {
-        realtimeAssistantItemIdRef.current = itemId;
-        return [...current, { role: "assistant", content: delta }];
-      }
-
       if (current.length === 0) {
+        realtimeHasOpenAssistantMessageRef.current = true;
         return [{ role: "assistant", content: delta }];
       }
 
       const next = [...current];
       const last = next[next.length - 1];
-      if (last.role !== "assistant") {
+      if (!realtimeHasOpenAssistantMessageRef.current || last.role !== "assistant") {
+        realtimeHasOpenAssistantMessageRef.current = true;
         next.push({ role: "assistant", content: delta });
         return next;
       }
@@ -204,7 +200,7 @@ export default function App() {
   function finalizeRealtimeAssistantTranscript(itemId: string, transcript: string) {
     const cleaned = transcript.trim();
     if (!cleaned) {
-      realtimeAssistantItemIdRef.current = null;
+      realtimeHasOpenAssistantMessageRef.current = false;
       return;
     }
     if (realtimeFinalizedAssistantItemIdsRef.current.has(itemId)) {
@@ -218,7 +214,7 @@ export default function App() {
 
       const next = [...current];
       const last = next[next.length - 1];
-      if (realtimeAssistantItemIdRef.current === itemId && last.role === "assistant") {
+      if (realtimeHasOpenAssistantMessageRef.current && last.role === "assistant") {
         next[next.length - 1] = { role: "assistant", content: cleaned };
         return next;
       }
@@ -231,7 +227,7 @@ export default function App() {
     });
 
     realtimeFinalizedAssistantItemIdsRef.current.add(itemId);
-    realtimeAssistantItemIdRef.current = null;
+    realtimeHasOpenAssistantMessageRef.current = false;
   }
 
   function handleRealtimeServerEvent(event: unknown, model: string, voice: RealtimeVoice) {
@@ -304,46 +300,20 @@ export default function App() {
     };
   }, []);
 
-  async function handlePassageLookup() {
+  async function handleStudyRequestSubmit() {
     const trimmedReference = reference.trim();
     if (!trimmedReference) {
       setPassageError("Enter a reference.");
-      return;
-    }
-
-    setIsLoadingPassage(true);
-    setPassageError("");
-
-    try {
-      const response = await requestJson<BiblePassageResponse>("/api/bible/passage", undefined, {
-        reference: trimmedReference,
-        translation
-      });
-      setPassage(response);
-    } catch (error) {
-      setPassage(null);
-      setPassageError(error instanceof Error ? error.message : "Unable to load passage.");
-    } finally {
-      setIsLoadingPassage(false);
-    }
-  }
-
-  async function handleStudyPlanGeneration() {
-    const trimmedReference = reference.trim();
-    if (!trimmedReference) {
       setStudyPlanError("Enter a reference.");
       return;
     }
 
+    setIsLoadingPassage(true);
     setIsLoadingStudyPlan(true);
+    setPassageError("");
     setStudyPlanError("");
 
     try {
-      const canReusePassage =
-        passage !== null &&
-        normalizeReference(passage.reference) === normalizeReference(trimmedReference) &&
-        passage.translation === translation;
-
       const response = await requestJson<StudyPlanResponse>("/api/study-plan", {
         method: "POST",
         headers: {
@@ -355,24 +325,25 @@ export default function App() {
           goals: goals.trim() || undefined,
           user_notes: userNotes.trim() || undefined,
           include_question_notes: includeQuestionNotes,
-          passage_text: canReusePassage ? passage.text : undefined
         })
       });
 
       setStudyPlan(response);
-      if (!canReusePassage) {
-        setPassage({
-          reference: response.reference,
-          normalized_reference: response.normalized_reference,
-          translation: response.translation,
-          text: response.passage_text,
-          verses: []
-        });
-      }
+      setPassage({
+        reference: response.reference,
+        normalized_reference: response.normalized_reference,
+        translation: response.translation,
+        text: response.passage_text,
+        verses: []
+      });
     } catch (error) {
       setStudyPlan(null);
-      setStudyPlanError(error instanceof Error ? error.message : "Unable to generate study plan.");
+      setPassage(null);
+      const detail = error instanceof Error ? error.message : "Unable to generate study.";
+      setPassageError(detail);
+      setStudyPlanError(detail);
     } finally {
+      setIsLoadingPassage(false);
       setIsLoadingStudyPlan(false);
     }
   }
@@ -406,21 +377,6 @@ export default function App() {
     } finally {
       setIsLoadingPassageImage(false);
     }
-  }
-
-  function speakDiscussionReply(replyText: string) {
-    const cleaned = replyText.trim();
-    if (!cleaned || !enableDiscussionVoiceReply) {
-      return;
-    }
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) {
-      return;
-    }
-
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(cleaned);
-    utterance.rate = 1;
-    window.speechSynthesis.speak(utterance);
   }
 
   async function streamWorkspaceMessage({
@@ -578,8 +534,7 @@ export default function App() {
       setMessages: setDiscussionMessages,
       setError: setDiscussionError,
       setIsSending: setIsSendingDiscussion,
-      setModel: setDiscussionModel,
-      onReplyFinished: speakDiscussionReply,
+      setModel: setDiscussionModel
     });
   }
 
@@ -944,7 +899,6 @@ export default function App() {
           {activeView === "study" ? (
             <StudyWorkspace
               reference={reference}
-              translation={translation}
               goals={goals}
               passage={passage}
               studyPlan={studyPlan}
@@ -957,10 +911,8 @@ export default function App() {
               isLoadingPassageImage={isLoadingPassageImage}
               hasUsage={hasUsage}
               onReferenceChange={setReference}
-              onTranslationChange={setTranslation}
               onGoalsChange={setGoals}
-              onFetchPassage={handlePassageLookup}
-              onGeneratePlan={handleStudyPlanGeneration}
+              onSubmitStudyRequest={handleStudyRequestSubmit}
               onGenerateImage={handlePassageImageGeneration}
             />
           ) : null}
@@ -970,17 +922,12 @@ export default function App() {
               personaModel={discussionModel}
               personaError={discussionError}
               personaMessages={discussionMessages}
-              enableVoiceReply={enableDiscussionVoiceReply}
               isSendingPersona={isSendingDiscussion}
-              isRecordingPersona={isRecordingDiscussion}
               isTranscribingPersona={isTranscribingDiscussion}
               isRealtimeVoiceConnecting={isRealtimeVoiceConnecting}
               isRealtimeVoiceActive={isRealtimeVoiceActive}
               realtimeVoiceStatus={realtimeVoiceStatus}
-              onPersonaVoiceToggle={isRecordingDiscussion ? stopDiscussionRecording : () => void startDiscussionRecording()}
               onRealtimeVoiceToggle={handleRealtimeVoiceToggle}
-              onPersonaReset={handleDiscussionReset}
-              onEnableVoiceReplyChange={setEnableDiscussionVoiceReply}
             />
           ) : null}
 

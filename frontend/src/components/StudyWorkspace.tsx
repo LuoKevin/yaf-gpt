@@ -3,8 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type {
   BiblePassageResponse,
   PassageImageResponse,
-  StudyPlanResponse,
-  TranslationCode
+  StudyPlanResponse
 } from "../types";
 
 const BIBLE_BOOKS = [
@@ -103,7 +102,6 @@ function parseReferenceParts(reference: string) {
 
 type StudyWorkspaceProps = {
   reference: string;
-  translation: TranslationCode;
   goals: string;
   passage: BiblePassageResponse | null;
   studyPlan: StudyPlanResponse | null;
@@ -116,10 +114,8 @@ type StudyWorkspaceProps = {
   isLoadingPassageImage: boolean;
   hasUsage: boolean | null;
   onReferenceChange: (value: string) => void;
-  onTranslationChange: (value: TranslationCode) => void;
   onGoalsChange: (value: string) => void;
-  onFetchPassage: () => void;
-  onGeneratePlan: () => void;
+  onSubmitStudyRequest: () => void;
   onGenerateImage: () => void;
 };
 
@@ -138,8 +134,7 @@ export function StudyWorkspace({
   hasUsage,
   onReferenceChange,
   onGoalsChange,
-  onFetchPassage,
-  onGeneratePlan,
+  onSubmitStudyRequest,
   onGenerateImage
 }: StudyWorkspaceProps) {
   const parsedReference = useMemo(() => parseReferenceParts(reference), [reference]);
@@ -172,7 +167,7 @@ export function StudyWorkspace({
   const hasExactBookMatch = BIBLE_BOOKS.some((book) => book.toLowerCase() === normalizedBook.toLowerCase());
   const normalizedRange = rangeInput.trim();
   const isRangeValid = normalizedRange.length > 0 && PASSAGE_RANGE_PATTERN.test(normalizedRange);
-  const canSubmitReference = hasExactBookMatch && isRangeValid;
+  const canSubmitStudyRequest = hasExactBookMatch && isRangeValid;
   const filteredBooks = useMemo(() => {
     if (!isBookFiltering) {
       return [...BIBLE_BOOKS];
@@ -246,7 +241,7 @@ export function StudyWorkspace({
           </p>
         </div>
 
-        <div className="study-selector-bar">
+        <div className="study-request-bar">
           <div className="study-selector-field study-book-selector" ref={bookSelectorRef}>
             <span className="material-symbols-outlined">menu_book</span>
             <input
@@ -302,19 +297,23 @@ export function StudyWorkspace({
             title="Use formats like 8, 8:1, 8:1-11, or 8:1-9:4."
             aria-invalid={rangeInput.length > 0 && !isRangeValid}
           />
+          <label className="field study-goal-field">
+            <span>Study goal</span>
+            <input value={goals} onChange={(event) => onGoalsChange(event.target.value)} placeholder="Set your intention..." />
+          </label>
           <button
             type="button"
             className="primary-button"
-            onClick={onFetchPassage}
-            disabled={isLoadingPassage || !canSubmitReference}
+            onClick={onSubmitStudyRequest}
+            disabled={(isLoadingPassage || isLoadingStudyPlan) || !canSubmitStudyRequest}
           >
-            {isLoadingPassage ? (
+            {isLoadingPassage || isLoadingStudyPlan ? (
               <>
                 <span className="loading-spinner" aria-hidden="true" />
-                <span>Loading...</span>
+                <span>Generating...</span>
               </>
             ) : (
-              "Fetch passage"
+              "Generate study"
             )}
           </button>
         </div>
@@ -325,33 +324,6 @@ export function StudyWorkspace({
         {rangeInput.length > 0 && !isRangeValid ? (
           <p className="field-note">Passage range must match formats like `8`, `8:1`, `8:1-11`, or `8:1-9:4`.</p>
         ) : null}
-
-        <div className="study-goal-bar">
-          <label className="field">
-            <span>Study goal</span>
-            <input value={goals} onChange={(event) => onGoalsChange(event.target.value)} placeholder="Set your intention..." />
-          </label>
-          <button type="button" className="secondary-button" onClick={onGeneratePlan} disabled={isLoadingStudyPlan}>
-            {isLoadingStudyPlan ? (
-              <>
-                <span className="loading-spinner" aria-hidden="true" />
-                <span>Generating...</span>
-              </>
-            ) : (
-              "Get study"
-            )}
-          </button>
-          <button type="button" className="ghost-button" onClick={onGenerateImage} disabled={isLoadingPassageImage}>
-            {isLoadingPassageImage ? (
-              <>
-                <span className="loading-spinner" aria-hidden="true" />
-                <span>Generating...</span>
-              </>
-            ) : (
-              "Generate image"
-            )}
-          </button>
-        </div>
 
         {passageError ? <p className="error-banner">{passageError}</p> : null}
 
@@ -459,6 +431,16 @@ export function StudyWorkspace({
                 <p className="section-label">Visual context</p>
                 <h3>{passageImage ? "Generated image" : "Awaiting image"}</h3>
               </div>
+              <button type="button" className="ghost-button" onClick={onGenerateImage} disabled={isLoadingPassageImage}>
+                {isLoadingPassageImage ? (
+                  <>
+                    <span className="loading-spinner" aria-hidden="true" />
+                    <span>Generating...</span>
+                  </>
+                ) : (
+                  "Generate image"
+                )}
+              </button>
             </div>
             {passageImageError ? <p className="error-banner">{passageImageError}</p> : null}
             {isLoadingPassageImage ? (
