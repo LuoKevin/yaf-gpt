@@ -63,6 +63,7 @@ export default function App() {
   const [isRealtimeVoiceConnecting, setIsRealtimeVoiceConnecting] = useState(false);
   const [isRealtimeVoiceActive, setIsRealtimeVoiceActive] = useState(false);
   const [realtimeVoiceStatus, setRealtimeVoiceStatus] = useState("");
+  const [realtimeVoiceLevel, setRealtimeVoiceLevel] = useState(0);
 
   const discussionRecorderRef = useRef<MediaRecorder | null>(null);
   const discussionStreamRef = useRef<MediaStream | null>(null);
@@ -74,6 +75,12 @@ export default function App() {
   const realtimeHasOpenAssistantMessageRef = useRef(false);
   const realtimeUserTranscriptItemIdsRef = useRef<Set<string>>(new Set());
   const realtimeFinalizedAssistantItemIdsRef = useRef<Set<string>>(new Set());
+  const realtimeAudioContextRef = useRef<AudioContext | null>(null);
+  const realtimeAnalyserRef = useRef<AnalyserNode | null>(null);
+  const realtimeAudioSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const realtimeVoiceLevelFrameRef = useRef<number | null>(null);
+  const realtimePublishedVoiceLevelRef = useRef(0);
+  const realtimeSmoothedVoiceLevelRef = useRef(0);
 
   const [musicPrompt, setMusicPrompt] = useState("");
   const [musicStyle, setMusicStyle] = useState("modern worship, acoustic");
@@ -137,6 +144,96 @@ export default function App() {
     return realtimeAudioRef.current;
   }
 
+  function stopRealtimeVoiceLevelMonitoring() {
+    if (realtimeVoiceLevelFrameRef.current !== null) {
+      window.cancelAnimationFrame(realtimeVoiceLevelFrameRef.current);
+      realtimeVoiceLevelFrameRef.current = null;
+    }
+
+    try {
+      realtimeAudioSourceRef.current?.disconnect();
+    } catch {
+      // Ignore cleanup failures from disconnected nodes.
+    }
+
+    try {
+      realtimeAnalyserRef.current?.disconnect();
+    } catch {
+      // Ignore cleanup failures from disconnected nodes.
+    }
+
+    const audioContext = realtimeAudioContextRef.current;
+    if (audioContext) {
+      void audioContext.close().catch(() => {
+        // Ignore close failures during teardown.
+      });
+    }
+
+    realtimeAudioContextRef.current = null;
+    realtimeAnalyserRef.current = null;
+    realtimeAudioSourceRef.current = null;
+    realtimePublishedVoiceLevelRef.current = 0;
+    realtimeSmoothedVoiceLevelRef.current = 0;
+    setRealtimeVoiceLevel(0);
+  }
+
+  function startRealtimeVoiceLevelMonitoring(stream: MediaStream) {
+    stopRealtimeVoiceLevelMonitoring();
+
+    if (typeof window === "undefined" || typeof window.AudioContext === "undefined") {
+      return;
+    }
+
+    try {
+      const audioContext = new window.AudioContext();
+      const analyser = audioContext.createAnalyser();
+      analyser.fftSize = 256;
+      analyser.smoothingTimeConstant = 0.82;
+
+      const source = audioContext.createMediaStreamSource(stream);
+      source.connect(analyser);
+
+      realtimeAudioContextRef.current = audioContext;
+      realtimeAnalyserRef.current = analyser;
+      realtimeAudioSourceRef.current = source;
+
+      void audioContext.resume().catch(() => {
+        // Ignore resume failures and fall back to the base pulse.
+      });
+
+      const data = new Uint8Array(analyser.fftSize);
+      let lastPublishedAt = 0;
+
+      const tick = (time: number) => {
+        analyser.getByteTimeDomainData(data);
+
+        let sumSquares = 0;
+        for (const sample of data) {
+          const centered = (sample - 128) / 128;
+          sumSquares += centered * centered;
+        }
+
+        const rms = Math.sqrt(sumSquares / data.length);
+        const normalizedLevel = Math.min(1, Math.max(0, (rms - 0.015) * 18));
+        const smoothedLevel = realtimeSmoothedVoiceLevelRef.current * 0.82 + normalizedLevel * 0.18;
+        realtimeSmoothedVoiceLevelRef.current = smoothedLevel;
+
+        if (time - lastPublishedAt >= 50 || Math.abs(smoothedLevel - realtimePublishedVoiceLevelRef.current) >= 0.035) {
+          const nextLevel = Number(smoothedLevel.toFixed(3));
+          realtimePublishedVoiceLevelRef.current = nextLevel;
+          setRealtimeVoiceLevel(nextLevel);
+          lastPublishedAt = time;
+        }
+
+        realtimeVoiceLevelFrameRef.current = window.requestAnimationFrame(tick);
+      };
+
+      realtimeVoiceLevelFrameRef.current = window.requestAnimationFrame(tick);
+    } catch {
+      stopRealtimeVoiceLevelMonitoring();
+    }
+  }
+
   function stopRealtimeVoiceSession() {
     realtimeDataChannelRef.current?.close();
     realtimeDataChannelRef.current = null;
@@ -155,6 +252,7 @@ export default function App() {
       audio.srcObject = null;
     }
 
+    stopRealtimeVoiceLevelMonitoring();
     realtimeHasOpenAssistantMessageRef.current = false;
     realtimeUserTranscriptItemIdsRef.current.clear();
     realtimeFinalizedAssistantItemIdsRef.current.clear();
@@ -677,7 +775,9 @@ export default function App() {
       realtimePeerConnectionRef.current = peerConnection;
 
       peerConnection.ontrack = (event) => {
-        audio.srcObject = event.streams[0] ?? null;
+        const remoteStream = event.streams[0] ?? new MediaStream([event.track]);
+        audio.srcObject = remoteStream;
+        startRealtimeVoiceLevelMonitoring(remoteStream);
         void audio.play().catch(() => {
           setRealtimeVoiceStatus("Live voice connected. Tap the page if audio playback is blocked.");
         });
@@ -926,6 +1026,7 @@ export default function App() {
               isTranscribingPersona={isTranscribingDiscussion}
               isRealtimeVoiceConnecting={isRealtimeVoiceConnecting}
               isRealtimeVoiceActive={isRealtimeVoiceActive}
+              realtimeVoiceLevel={realtimeVoiceLevel}
               realtimeVoiceStatus={realtimeVoiceStatus}
               onRealtimeVoiceToggle={handleRealtimeVoiceToggle}
             />

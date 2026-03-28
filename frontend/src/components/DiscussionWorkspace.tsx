@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 
 import type { PersonaChatMessage } from "../types";
 
@@ -10,6 +10,7 @@ type DiscussionWorkspaceProps = {
   isTranscribingPersona: boolean;
   isRealtimeVoiceConnecting: boolean;
   isRealtimeVoiceActive: boolean;
+  realtimeVoiceLevel: number;
   realtimeVoiceStatus: string;
   onRealtimeVoiceToggle: () => void | Promise<void>;
 };
@@ -22,10 +23,14 @@ export function DiscussionWorkspace({
   isTranscribingPersona,
   isRealtimeVoiceConnecting,
   isRealtimeVoiceActive,
+  realtimeVoiceLevel,
   realtimeVoiceStatus,
   onRealtimeVoiceToggle
 }: DiscussionWorkspaceProps) {
   const [isTranscriptOpen, setIsTranscriptOpen] = useState(false);
+  const voiceOrbitStyle = {
+    "--voice-level": String(Math.max(0, Math.min(realtimeVoiceLevel, 1)))
+  } as CSSProperties;
 
   return (
     <section className="discussion-prototype">
@@ -60,7 +65,7 @@ export function DiscussionWorkspace({
         {personaError ? <p className="error-banner">{personaError}</p> : null}
 
         <div className="voice-visualizer-shell">
-          <div className={`voice-orbit ${isRealtimeVoiceActive ? "active" : ""}`}>
+          <div className={`voice-orbit ${isRealtimeVoiceActive ? "active" : ""}`} style={voiceOrbitStyle}>
             <div className="voice-orbit-inner">
               <div className="voice-bars">
                 <span />
