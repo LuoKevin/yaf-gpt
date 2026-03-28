@@ -340,7 +340,7 @@ export default function App() {
 
     if (eventType === "session.created" || eventType === "session.updated") {
       setDiscussionModel(model);
-      setRealtimeVoiceStatus(`Live voice connected on ${model} (${voice}).`);
+      setRealtimeVoiceStatus("Live voice connected.");
       return;
     }
 
@@ -793,7 +793,7 @@ export default function App() {
           setIsRealtimeVoiceConnecting(false);
           setIsRealtimeVoiceActive(true);
           setDiscussionModel(session.model);
-          setRealtimeVoiceStatus(`Live voice connected on ${session.model} (${session.voice}).`);
+          setRealtimeVoiceStatus("Live voice connected.");
           return;
         }
 
@@ -930,7 +930,6 @@ export default function App() {
     }
   }
 
-  const hasUsage = studyPlan?.usage?.total_tokens != null;
   const musicStatusLabel = useMemo(() => {
     if (!musicJobStatus) {
       return "queued";
@@ -949,18 +948,6 @@ export default function App() {
     }
     return "Music Draft";
   }, [activeView]);
-  const activeViewCopy = useMemo(() => {
-    if (activeView === "chat") {
-      return "Use a simpler ChatGPT-style text thread for quick questions without carrying state from the other workspaces.";
-    }
-    if (activeView === "study") {
-      return "Shape a sharper small-group guide with grounded context, discussion flow, and a companion passage image in one place.";
-    }
-    if (activeView === "discussion") {
-      return "Keep the mentor conversation voice-first, with recording, live voice, and an isolated transcript for this workspace only.";
-    }
-    return "Turn a passage direction into a more coherent music brief, then follow the job through to generated audio.";
-  }, [activeView]);
 
   return (
     <div className={`shell ${isSidebarCollapsed ? "shell-collapsed" : ""}`}>
@@ -976,11 +963,7 @@ export default function App() {
         <header className="app-topbar">
           <div className="app-topbar-copy">
             <span className="app-brand">YAF-GPT</span>
-            <span className="app-divider" />
-            <div>
-              <p className="app-topbar-title">{activeViewLabel}</p>
-              <p className="app-topbar-subtitle">{activeViewCopy}</p>
-            </div>
+            <p className="app-topbar-title">{activeViewLabel}</p>
           </div>
 
         </header>
@@ -990,7 +973,6 @@ export default function App() {
         >
           {activeView === "chat" ? (
             <TextChatWorkspace
-              personaModel={chatModel}
               personaError={chatError}
               personaMessages={chatMessages}
               personaInput={chatInput}
@@ -1013,7 +995,6 @@ export default function App() {
               isLoadingPassage={isLoadingPassage}
               isLoadingStudyPlan={isLoadingStudyPlan}
               isLoadingPassageImage={isLoadingPassageImage}
-              hasUsage={hasUsage}
               onReferenceChange={setReference}
               onGoalsChange={setGoals}
               onSubmitStudyRequest={handleStudyRequestSubmit}
@@ -1023,7 +1004,6 @@ export default function App() {
 
           {activeView === "discussion" ? (
             <DiscussionWorkspace
-              personaModel={discussionModel}
               personaError={discussionError}
               personaMessages={discussionMessages}
               isSendingPersona={isSendingDiscussion}

@@ -3,7 +3,6 @@ import { useState, type CSSProperties } from "react";
 import type { PersonaChatMessage } from "../types";
 
 type DiscussionWorkspaceProps = {
-  personaModel: string | null;
   personaError: string;
   personaMessages: PersonaChatMessage[];
   isSendingPersona: boolean;
@@ -16,7 +15,6 @@ type DiscussionWorkspaceProps = {
 };
 
 export function DiscussionWorkspace({
-  personaModel,
   personaError,
   personaMessages,
   isSendingPersona,
@@ -52,7 +50,6 @@ export function DiscussionWorkspace({
             </p>
           </div>
           <div className="discussion-status-cluster">
-            {personaModel ? <span className="surface-pill">{personaModel}</span> : null}
             {realtimeVoiceStatus ? (
               <span className="surface-pill loading-pill">
                 {isRealtimeVoiceConnecting ? <span className="loading-spinner" aria-hidden="true" /> : null}

@@ -3,7 +3,6 @@ import type { KeyboardEvent } from "react";
 import type { PersonaChatMessage } from "../types";
 
 type TextChatWorkspaceProps = {
-  personaModel: string | null;
   personaError: string;
   personaMessages: PersonaChatMessage[];
   personaInput: string;
@@ -13,7 +12,6 @@ type TextChatWorkspaceProps = {
 };
 
 export function TextChatWorkspace({
-  personaModel,
   personaError,
   personaMessages,
   personaInput,
@@ -38,14 +36,6 @@ export function TextChatWorkspace({
 
       <div className="chat-prototype-layout">
         <div className="chat-feed-card">
-          <div className="chat-feed-header">
-            <div>
-              <p className="section-label">Conversation</p>
-              <h2>The assistant is ready</h2>
-            </div>
-            {personaModel ? <span className="surface-pill">{personaModel}</span> : null}
-          </div>
-
           {personaError ? <p className="error-banner">{personaError}</p> : null}
 
           <div className="chat-log">
@@ -84,7 +74,7 @@ export function TextChatWorkspace({
             ) : (
               <div className="chat-empty-state">
                 <p className="section-label">Start a conversation</p>
-                <h3>Ask about a passage, a doctrine, or a question you are still wrestling through.</h3>
+                <h3>Ask about a passage, a doctrine, or just have a faith-centered chat.</h3>
               </div>
             )}
           </div>

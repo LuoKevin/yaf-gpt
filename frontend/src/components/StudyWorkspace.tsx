@@ -76,9 +76,21 @@ const BIBLE_BOOKS = [
 ] as const;
 
 const PASSAGE_RANGE_PATTERN = /^\d{1,3}(?::\d{1,3})?(?:-\d{1,3}(?::\d{1,3})?)?$/;
+const PRESET_PASSAGES = [
+  { reference: "Matthew 5-7", label: "Matthew 5–7 — Sermon on the Mount" },
+  { reference: "Matthew 22:34-40", label: "Matthew 22:34–40 — Greatest Commandments" },
+  { reference: "Luke 10:25-37", label: "Luke 10:25–37 — Good Samaritan" },
+  { reference: "Luke 15:11-32", label: "Luke 15:11–32 — Prodigal Son" },
+  { reference: "John 13:1-17", label: "John 13:1–17 — Servant leadership / washing feet" },
+  { reference: "John 15:1-17", label: "John 15:1–17 — Abide in me / love one another" }
+] as const;
 
 function normalizeBookInput(value: string) {
   return value.trim().replace(/\s+/g, " ");
+}
+
+function normalizeReferenceMatch(value: string) {
+  return normalizeBookInput(value).replace(/[–—]/g, "-").toLowerCase();
 }
 
 function parseReferenceParts(reference: string) {
@@ -112,7 +124,6 @@ type StudyWorkspaceProps = {
   isLoadingPassage: boolean;
   isLoadingStudyPlan: boolean;
   isLoadingPassageImage: boolean;
-  hasUsage: boolean | null;
   onReferenceChange: (value: string) => void;
   onGoalsChange: (value: string) => void;
   onSubmitStudyRequest: () => void;
@@ -131,7 +142,6 @@ export function StudyWorkspace({
   isLoadingPassage,
   isLoadingStudyPlan,
   isLoadingPassageImage,
-  hasUsage,
   onReferenceChange,
   onGoalsChange,
   onSubmitStudyRequest,
@@ -227,6 +237,18 @@ export function StudyWorkspace({
 
   const headingBook = parsedReference.book || "Study";
   const headingRest = parsedReference.range;
+  const selectedPresetReference =
+    PRESET_PASSAGES.find((preset) => normalizeReferenceMatch(preset.reference) === normalizeReferenceMatch(reference))?.reference ?? "";
+
+  function handlePresetChange(value: string) {
+    if (!value) {
+      return;
+    }
+    setIsBookMenuOpen(false);
+    setBookFilterQuery("");
+    setIsBookFiltering(false);
+    onReferenceChange(value);
+  }
 
   return (
     <section className="study-prototype">
@@ -241,83 +263,100 @@ export function StudyWorkspace({
           </p>
         </div>
 
-        <div className="study-request-bar">
-          <div className="study-selector-field study-book-selector" ref={bookSelectorRef}>
-            <span className="material-symbols-outlined">menu_book</span>
+        <div className="study-request-row">
+          <div className="study-request-bar">
+            <div className="study-selector-field study-book-selector" ref={bookSelectorRef}>
+              <span className="material-symbols-outlined">menu_book</span>
+              <input
+                value={bookInput}
+                onChange={(event) => handleBookChange(event.target.value)}
+                onFocus={() => {
+                  setIsBookMenuOpen(true);
+                  setIsBookFiltering(false);
+                  setBookFilterQuery("");
+                }}
+                placeholder="Select a book"
+                aria-expanded={isBookMenuOpen}
+                aria-haspopup="listbox"
+              />
+              <button
+                type="button"
+                className={`study-selector-caret-button ${isBookMenuOpen ? "open" : ""}`}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={toggleBookMenu}
+                aria-label={isBookMenuOpen ? "Close book selector" : "Open book selector"}
+              >
+                <span className="material-symbols-outlined study-selector-caret" aria-hidden="true">
+                  expand_more
+                </span>
+              </button>
+              {isBookMenuOpen ? (
+                <div className="study-book-dropdown" role="listbox" aria-label="Bible books">
+                  {filteredBooks.length > 0 ? (
+                    filteredBooks.map((book) => (
+                      <button
+                        key={book}
+                        type="button"
+                        className={`study-book-option ${book.toLowerCase() === normalizedBook.toLowerCase() ? "active" : ""}`}
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => handleBookSelect(book)}
+                      >
+                        {book}
+                      </button>
+                    ))
+                  ) : (
+                    <p className="study-book-empty">No matching book.</p>
+                  )}
+                </div>
+              ) : null}
+            </div>
             <input
-              value={bookInput}
-              onChange={(event) => handleBookChange(event.target.value)}
-              onFocus={() => {
-                setIsBookMenuOpen(true);
-                setIsBookFiltering(false);
-                setBookFilterQuery("");
-              }}
-              placeholder="Select a book"
-              aria-expanded={isBookMenuOpen}
-              aria-haspopup="listbox"
+              className="study-range-input"
+              value={rangeInput}
+              onChange={(event) => handleRangeChange(event.target.value)}
+              placeholder="21:5-28"
+              inputMode="numeric"
+              pattern={PASSAGE_RANGE_PATTERN.source}
+              title="Use formats like 8, 8:1, 8:1-11, or 8:1-9:4."
+              aria-invalid={rangeInput.length > 0 && !isRangeValid}
+            />
+            <input
+              className="study-goal-field"
+              value={goals}
+              onChange={(event) => onGoalsChange(event.target.value)}
+              placeholder="Study Goal (Optional)"
             />
             <button
               type="button"
-              className={`study-selector-caret-button ${isBookMenuOpen ? "open" : ""}`}
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={toggleBookMenu}
-              aria-label={isBookMenuOpen ? "Close book selector" : "Open book selector"}
+              className="primary-button"
+              onClick={onSubmitStudyRequest}
+              disabled={(isLoadingPassage || isLoadingStudyPlan) || !canSubmitStudyRequest}
             >
-              <span className="material-symbols-outlined study-selector-caret" aria-hidden="true">
-                expand_more
-              </span>
+              {isLoadingPassage || isLoadingStudyPlan ? (
+                <>
+                  <span className="loading-spinner" aria-hidden="true" />
+                  <span>Generating...</span>
+                </>
+              ) : (
+                "Generate study"
+              )}
             </button>
-            {isBookMenuOpen ? (
-              <div className="study-book-dropdown" role="listbox" aria-label="Bible books">
-                {filteredBooks.length > 0 ? (
-                  filteredBooks.map((book) => (
-                    <button
-                      key={book}
-                      type="button"
-                      className={`study-book-option ${book.toLowerCase() === normalizedBook.toLowerCase() ? "active" : ""}`}
-                      onMouseDown={(event) => event.preventDefault()}
-                      onClick={() => handleBookSelect(book)}
-                    >
-                      {book}
-                    </button>
-                  ))
-                ) : (
-                  <p className="study-book-empty">No matching book.</p>
-                )}
-              </div>
-            ) : null}
           </div>
-          <input
-            className="study-range-input"
-            value={rangeInput}
-            onChange={(event) => handleRangeChange(event.target.value)}
-            placeholder="21:5-28"
-            inputMode="numeric"
-            pattern={PASSAGE_RANGE_PATTERN.source}
-            title="Use formats like 8, 8:1, 8:1-11, or 8:1-9:4."
-            aria-invalid={rangeInput.length > 0 && !isRangeValid}
-          />
-          <input
-            className="study-goal-field"
-            value={goals}
-            onChange={(event) => onGoalsChange(event.target.value)}
-            placeholder="Study Goal (Optional)"
-          />
-          <button
-            type="button"
-            className="primary-button"
-            onClick={onSubmitStudyRequest}
-            disabled={(isLoadingPassage || isLoadingStudyPlan) || !canSubmitStudyRequest}
-          >
-            {isLoadingPassage || isLoadingStudyPlan ? (
-              <>
-                <span className="loading-spinner" aria-hidden="true" />
-                <span>Generating...</span>
-              </>
-            ) : (
-              "Generate study"
-            )}
-          </button>
+          <div className="study-preset-card">
+            <select
+              className="study-preset-select"
+              value={selectedPresetReference}
+              onChange={(event) => handlePresetChange(event.target.value)}
+              aria-label="Choose a preset Bible passage"
+            >
+              <option value="">Suggested passages</option>
+              {PRESET_PASSAGES.map((preset) => (
+                <option key={preset.reference} value={preset.reference}>
+                  {preset.label}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         {!hasExactBookMatch && normalizedBook.length > 0 ? (
@@ -371,7 +410,6 @@ export function StudyWorkspace({
               <p className="section-label">Study plan</p>
               <h3>{studyPlan?.passage_title ?? "Waiting for a plan"}</h3>
             </div>
-            {studyPlan ? <span className="surface-pill">{studyPlan.model}</span> : null}
           </div>
 
           {studyPlanError ? <p className="error-banner">{studyPlanError}</p> : null}
@@ -417,12 +455,6 @@ export function StudyWorkspace({
                   ))}
                 </ul>
               </section>
-              {hasUsage ? (
-                <p className="usage-note">
-                  Tokens: {studyPlan.usage?.prompt_tokens ?? 0} / {studyPlan.usage?.completion_tokens ?? 0} /{" "}
-                  {studyPlan.usage?.total_tokens ?? 0}
-                </p>
-              ) : null}
             </div>
           ) : (
             <p className="empty-state">Generate a study plan after setting your passage and goal.</p>
