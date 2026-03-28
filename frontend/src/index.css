@@ -1122,9 +1122,6 @@ textarea {
 .study-request-bar .study-goal-field {
   flex: 1 1 22rem;
   min-width: 0;
-}
-
-.study-request-bar .study-goal-field input {
   min-height: 48px;
 }
 
@@ -1151,28 +1148,23 @@ textarea {
 }
 
 .study-verse-flow {
-  display: grid;
-  gap: 10px;
+  display: block;
   max-height: 280px;
   overflow-y: auto;
   padding-right: 4px;
 }
 
-.study-verse-row {
-  position: relative;
-  padding-left: 28px;
+.study-verse-inline {
+  display: inline;
 }
 
-.study-verse-number {
-  position: absolute;
-  left: 0;
-  top: 3px;
+.study-verse-number-inline {
+  margin-right: 0.28rem;
   font-size: 0.76rem;
   font-weight: 700;
   color: rgba(197, 197, 216, 0.72);
 }
 
-.study-verse-row p,
 .study-passage-text {
   margin: 0;
   font-size: 0.96rem;

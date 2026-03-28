@@ -412,28 +412,32 @@ export default function App() {
     setStudyPlanError("");
 
     try {
-      const response = await requestJson<StudyPlanResponse>("/api/study-plan", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          reference: trimmedReference,
-          translation,
-          goals: goals.trim() || undefined,
-          user_notes: userNotes.trim() || undefined,
-          include_question_notes: includeQuestionNotes,
+      const [passageResponse, studyPlanResponse] = await Promise.all([
+        requestJson<BiblePassageResponse>(
+          "/api/bible/passage",
+          undefined,
+          {
+            reference: trimmedReference,
+            translation
+          }
+        ),
+        requestJson<StudyPlanResponse>("/api/study-plan", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            reference: trimmedReference,
+            translation,
+            goals: goals.trim() || undefined,
+            user_notes: userNotes.trim() || undefined,
+            include_question_notes: includeQuestionNotes,
+          })
         })
-      });
+      ]);
 
-      setStudyPlan(response);
-      setPassage({
-        reference: response.reference,
-        normalized_reference: response.normalized_reference,
-        translation: response.translation,
-        text: response.passage_text,
-        verses: []
-      });
+      setPassage(passageResponse);
+      setStudyPlan(studyPlanResponse);
     } catch (error) {
       setStudyPlan(null);
       setPassage(null);

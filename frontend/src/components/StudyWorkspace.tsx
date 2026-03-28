@@ -297,10 +297,12 @@ export function StudyWorkspace({
             title="Use formats like 8, 8:1, 8:1-11, or 8:1-9:4."
             aria-invalid={rangeInput.length > 0 && !isRangeValid}
           />
-          <label className="field study-goal-field">
-            <span>Study goal</span>
-            <input value={goals} onChange={(event) => onGoalsChange(event.target.value)} placeholder="Set your intention..." />
-          </label>
+          <input
+            className="study-goal-field"
+            value={goals}
+            onChange={(event) => onGoalsChange(event.target.value)}
+            placeholder="Study Goal (Optional)"
+          />
           <button
             type="button"
             className="primary-button"
@@ -344,12 +346,14 @@ export function StudyWorkspace({
               </div>
               {passage.verses.length > 0 ? (
                 <div className="study-verse-flow">
-                  {passage.verses.map((verse) => (
-                    <div key={`${verse.book}-${verse.chapter}-${verse.verse}`} className="study-verse-row">
-                      <span className="study-verse-number">{verse.verse}</span>
-                      <p>{verse.text}</p>
-                    </div>
-                  ))}
+                  <p className="study-passage-text">
+                    {passage.verses.map((verse) => (
+                      <span key={`${verse.book}-${verse.chapter}-${verse.verse}`} className="study-verse-inline">
+                        <sup className="study-verse-number-inline">{verse.verse}</sup>
+                        <span>{verse.text}</span>{" "}
+                      </span>
+                    ))}
+                  </p>
                 </div>
               ) : (
                 <p className="study-passage-text">{passage.text}</p>
