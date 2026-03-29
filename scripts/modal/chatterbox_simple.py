@@ -19,13 +19,16 @@ Setup:
 3. `modal volume create chatterbox-voices`
 4. Upload one or more prompt WAV files into the volume root.
 5. Create a secret named `hf-token` with `HF_TOKEN=<token>`.
-6. Deploy with `modal deploy scripts/modal/chatterbox_simple.py`
+6. Create a secret named `chatterbox-api-token` with
+   `CHATTERBOX_API_TOKEN=<strong-random-token>`.
+7. Deploy with `modal deploy scripts/modal/chatterbox_simple.py`
 """
 
 from __future__ import annotations
 
 import io
 import os
+import secrets
 from pathlib import Path
 
 import modal
@@ -62,6 +65,7 @@ VOICE_VOLUME_NAME = os.getenv("CHATTERBOX_VOICE_VOLUME", "chatterbox-voices")
 VOICE_PROMPTS_DIR = "/voices"
 DEFAULT_VOICE_PROMPT = os.getenv("CHATTERBOX_DEFAULT_VOICE_PROMPT", "Lucy.wav")
 HF_SECRET_NAME = os.getenv("CHATTERBOX_HF_SECRET_NAME", "hf-token")
+API_SECRET_NAME = os.getenv("CHATTERBOX_API_SECRET_NAME", "chatterbox-api-token")
 
 image = modal.Image.debian_slim(python_version="3.10").uv_pip_install(
     "chatterbox-tts==0.1.6",
@@ -81,7 +85,10 @@ with image.imports():
 @app.cls(
     gpu="a10g",
     scaledown_window=60 * 5,
-    secrets=[modal.Secret.from_name(HF_SECRET_NAME)],
+    secrets=[
+        modal.Secret.from_name(HF_SECRET_NAME),
+        modal.Secret.from_name(API_SECRET_NAME),
+    ],
     volumes={VOICE_PROMPTS_DIR: voice_prompts_volume},
 )
 class ChatterboxService:
@@ -107,9 +114,14 @@ class ChatterboxService:
         return buffer.read()
 
     @modal.fastapi_endpoint(method="POST", docs=True)
-    def generate_endpoint(self, payload: dict):
-        from fastapi import HTTPException
+    def generate_endpoint(self, payload: dict, request):
+        from fastapi import HTTPException, Request
         from fastapi.responses import StreamingResponse
+
+        if not isinstance(request, Request):
+            raise HTTPException(status_code=500, detail="Request context is unavailable.")
+
+        self._require_bearer_auth(request)
 
         if not isinstance(payload, dict):
             raise HTTPException(status_code=400, detail="JSON object body is required.")
@@ -137,6 +149,24 @@ class ChatterboxService:
             raise HTTPException(status_code=502, detail=str(exc)) from exc
 
         return StreamingResponse(io.BytesIO(audio_bytes), media_type="audio/wav")
+
+    @staticmethod
+    def _require_bearer_auth(request) -> None:
+        expected_token = (os.getenv("CHATTERBOX_API_TOKEN") or "").strip()
+        if not expected_token:
+            raise RuntimeError("CHATTERBOX_API_TOKEN is not set in the Modal runtime.")
+
+        authorization = request.headers.get("authorization", "").strip()
+        if not authorization.lower().startswith("bearer "):
+            from fastapi import HTTPException
+
+            raise HTTPException(status_code=401, detail="Missing bearer token.")
+
+        provided_token = authorization[7:].strip()
+        if not provided_token or not secrets.compare_digest(provided_token, expected_token):
+            from fastapi import HTTPException
+
+            raise HTTPException(status_code=401, detail="Invalid bearer token.")
 
 
 @app.local_entrypoint()

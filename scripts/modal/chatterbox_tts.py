@@ -112,7 +112,7 @@ class ChatterboxTurboService:
 @app.local_entrypoint()
 def test(
     input_text: str = "Chatterbox Turbo running on Modal for YAF-GPT.",
-    output_path: str = "tmp/yaf-gpt-chatterbox-output.wav",
+    output_path: str = "/Users/kevinluo/Documents/Projects/yaf-gpt/output.wav",
     voice_prompt_name: str = DEFAULT_VOICE_PROMPT,
 ) -> None:
     service = ChatterboxTurboService()
