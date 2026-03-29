@@ -3,8 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type {
   BiblePassageResponse,
   PassageImageResponse,
-  StudyPlanResponse,
-  TranslationCode
+  StudyPlanResponse
 } from "../types";
 
 const BIBLE_BOOKS = [
@@ -77,9 +76,21 @@ const BIBLE_BOOKS = [
 ] as const;
 
 const PASSAGE_RANGE_PATTERN = /^\d{1,3}(?::\d{1,3})?(?:-\d{1,3}(?::\d{1,3})?)?$/;
+const PRESET_PASSAGES = [
+  { reference: "Matthew 5", label: "Matthew 5 — Sermon on the Mount" },
+  { reference: "Matthew 22:34-40", label: "Matthew 22:34–40 — Greatest Commandments" },
+  { reference: "Luke 10:25-37", label: "Luke 10:25–37 — Good Samaritan" },
+  { reference: "Luke 15:11-32", label: "Luke 15:11–32 — Prodigal Son" },
+  { reference: "John 13:1-17", label: "John 13:1–17 — Servant leadership / washing feet" },
+  { reference: "John 15:1-17", label: "John 15:1–17 — Abide in me / love one another" }
+] as const;
 
 function normalizeBookInput(value: string) {
   return value.trim().replace(/\s+/g, " ");
+}
+
+function normalizeReferenceMatch(value: string) {
+  return normalizeBookInput(value).replace(/[–—]/g, "-").toLowerCase();
 }
 
 function parseReferenceParts(reference: string) {
@@ -103,10 +114,7 @@ function parseReferenceParts(reference: string) {
 
 type StudyWorkspaceProps = {
   reference: string;
-  translation: TranslationCode;
   goals: string;
-  userNotes: string;
-  includeQuestionNotes: boolean;
   passage: BiblePassageResponse | null;
   studyPlan: StudyPlanResponse | null;
   passageError: string;
@@ -116,22 +124,15 @@ type StudyWorkspaceProps = {
   isLoadingPassage: boolean;
   isLoadingStudyPlan: boolean;
   isLoadingPassageImage: boolean;
-  hasUsage: boolean | null;
   onReferenceChange: (value: string) => void;
-  onTranslationChange: (value: TranslationCode) => void;
   onGoalsChange: (value: string) => void;
-  onUserNotesChange: (value: string) => void;
-  onIncludeQuestionNotesChange: (value: boolean) => void;
-  onFetchPassage: () => void;
-  onGeneratePlan: () => void;
+  onSubmitStudyRequest: () => void;
   onGenerateImage: () => void;
 };
 
 export function StudyWorkspace({
   reference,
   goals,
-  userNotes,
-  includeQuestionNotes,
   passage,
   studyPlan,
   passageError,
@@ -141,13 +142,9 @@ export function StudyWorkspace({
   isLoadingPassage,
   isLoadingStudyPlan,
   isLoadingPassageImage,
-  hasUsage,
   onReferenceChange,
   onGoalsChange,
-  onUserNotesChange,
-  onIncludeQuestionNotesChange,
-  onFetchPassage,
-  onGeneratePlan,
+  onSubmitStudyRequest,
   onGenerateImage
 }: StudyWorkspaceProps) {
   const parsedReference = useMemo(() => parseReferenceParts(reference), [reference]);
@@ -180,7 +177,7 @@ export function StudyWorkspace({
   const hasExactBookMatch = BIBLE_BOOKS.some((book) => book.toLowerCase() === normalizedBook.toLowerCase());
   const normalizedRange = rangeInput.trim();
   const isRangeValid = normalizedRange.length > 0 && PASSAGE_RANGE_PATTERN.test(normalizedRange);
-  const canSubmitReference = hasExactBookMatch && isRangeValid;
+  const canSubmitStudyRequest = hasExactBookMatch && isRangeValid;
   const filteredBooks = useMemo(() => {
     if (!isBookFiltering) {
       return [...BIBLE_BOOKS];
@@ -240,6 +237,18 @@ export function StudyWorkspace({
 
   const headingBook = parsedReference.book || "Study";
   const headingRest = parsedReference.range;
+  const selectedPresetReference =
+    PRESET_PASSAGES.find((preset) => normalizeReferenceMatch(preset.reference) === normalizeReferenceMatch(reference))?.reference ?? "";
+
+  function handlePresetChange(value: string) {
+    if (!value) {
+      return;
+    }
+    setIsBookMenuOpen(false);
+    setBookFilterQuery("");
+    setIsBookFiltering(false);
+    onReferenceChange(value);
+  }
 
   return (
     <section className="study-prototype">
@@ -254,70 +263,100 @@ export function StudyWorkspace({
           </p>
         </div>
 
-        <div className="study-selector-bar">
-          <div className="study-selector-field study-book-selector" ref={bookSelectorRef}>
-            <span className="material-symbols-outlined">menu_book</span>
+        <div className="study-request-row">
+          <div className="study-request-bar">
+            <div className="study-selector-field study-book-selector" ref={bookSelectorRef}>
+              <span className="material-symbols-outlined">menu_book</span>
+              <input
+                value={bookInput}
+                onChange={(event) => handleBookChange(event.target.value)}
+                onFocus={() => {
+                  setIsBookMenuOpen(true);
+                  setIsBookFiltering(false);
+                  setBookFilterQuery("");
+                }}
+                placeholder="Select a book"
+                aria-expanded={isBookMenuOpen}
+                aria-haspopup="listbox"
+              />
+              <button
+                type="button"
+                className={`study-selector-caret-button ${isBookMenuOpen ? "open" : ""}`}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={toggleBookMenu}
+                aria-label={isBookMenuOpen ? "Close book selector" : "Open book selector"}
+              >
+                <span className="material-symbols-outlined study-selector-caret" aria-hidden="true">
+                  expand_more
+                </span>
+              </button>
+              {isBookMenuOpen ? (
+                <div className="study-book-dropdown" role="listbox" aria-label="Bible books">
+                  {filteredBooks.length > 0 ? (
+                    filteredBooks.map((book) => (
+                      <button
+                        key={book}
+                        type="button"
+                        className={`study-book-option ${book.toLowerCase() === normalizedBook.toLowerCase() ? "active" : ""}`}
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => handleBookSelect(book)}
+                      >
+                        {book}
+                      </button>
+                    ))
+                  ) : (
+                    <p className="study-book-empty">No matching book.</p>
+                  )}
+                </div>
+              ) : null}
+            </div>
             <input
-              value={bookInput}
-              onChange={(event) => handleBookChange(event.target.value)}
-              onFocus={() => {
-                setIsBookMenuOpen(true);
-                setIsBookFiltering(false);
-                setBookFilterQuery("");
-              }}
-              placeholder="Select a book"
-              aria-expanded={isBookMenuOpen}
-              aria-haspopup="listbox"
+              className="study-range-input"
+              value={rangeInput}
+              onChange={(event) => handleRangeChange(event.target.value)}
+              placeholder="21:5-28"
+              inputMode="numeric"
+              pattern={PASSAGE_RANGE_PATTERN.source}
+              title="Use formats like 8, 8:1, 8:1-11, or 8:1-9:4."
+              aria-invalid={rangeInput.length > 0 && !isRangeValid}
+            />
+            <input
+              className="study-goal-field"
+              value={goals}
+              onChange={(event) => onGoalsChange(event.target.value)}
+              placeholder="Study Goal (Optional)"
             />
             <button
               type="button"
-              className={`study-selector-caret-button ${isBookMenuOpen ? "open" : ""}`}
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={toggleBookMenu}
-              aria-label={isBookMenuOpen ? "Close book selector" : "Open book selector"}
+              className="primary-button"
+              onClick={onSubmitStudyRequest}
+              disabled={(isLoadingPassage || isLoadingStudyPlan) || !canSubmitStudyRequest}
             >
-              <span className="material-symbols-outlined study-selector-caret" aria-hidden="true">
-                expand_more
-              </span>
+              {isLoadingPassage || isLoadingStudyPlan ? (
+                <>
+                  <span className="loading-spinner" aria-hidden="true" />
+                  <span>Generating...</span>
+                </>
+              ) : (
+                "Generate study"
+              )}
             </button>
-            {isBookMenuOpen ? (
-              <div className="study-book-dropdown" role="listbox" aria-label="Bible books">
-                {filteredBooks.length > 0 ? (
-                  filteredBooks.map((book) => (
-                    <button
-                      key={book}
-                      type="button"
-                      className={`study-book-option ${book.toLowerCase() === normalizedBook.toLowerCase() ? "active" : ""}`}
-                      onMouseDown={(event) => event.preventDefault()}
-                      onClick={() => handleBookSelect(book)}
-                    >
-                      {book}
-                    </button>
-                  ))
-                ) : (
-                  <p className="study-book-empty">No matching book.</p>
-                )}
-              </div>
-            ) : null}
           </div>
-          <input
-            className="study-range-input"
-            value={rangeInput}
-            onChange={(event) => handleRangeChange(event.target.value)}
-            placeholder="21:5-28"
-            inputMode="numeric"
-            pattern={PASSAGE_RANGE_PATTERN.source}
-            title="Use formats like 8, 8:1, 8:1-11, or 8:1-9:4."
-            aria-invalid={rangeInput.length > 0 && !isRangeValid}
-          />
-          <button
-            type="button"
-            className="primary-button"
-            onClick={onFetchPassage}
-            disabled={isLoadingPassage || !canSubmitReference}
-          >
-            {isLoadingPassage ? "Loading..." : "Fetch passage"}
-          </button>
+          <div className="study-preset-card">
+            <select
+              className="study-preset-select"
+              value={selectedPresetReference}
+              onChange={(event) => handlePresetChange(event.target.value)}
+              aria-label="Choose a preset Bible passage"
+            >
+              <option value="">Suggested passages</option>
+              {PRESET_PASSAGES.map((preset) => (
+                <option key={preset.reference} value={preset.reference}>
+                  {preset.label}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         {!hasExactBookMatch && normalizedBook.length > 0 ? (
@@ -327,36 +366,33 @@ export function StudyWorkspace({
           <p className="field-note">Passage range must match formats like `8`, `8:1`, `8:1-11`, or `8:1-9:4`.</p>
         ) : null}
 
-        <div className="study-goal-bar">
-          <label className="field">
-            <span>Study goal</span>
-            <input value={goals} onChange={(event) => onGoalsChange(event.target.value)} placeholder="Set your intention..." />
-          </label>
-          <button type="button" className="secondary-button" onClick={onGeneratePlan} disabled={isLoadingStudyPlan}>
-            {isLoadingStudyPlan ? "Generating..." : "Get study"}
-          </button>
-          <button type="button" className="ghost-button" onClick={onGenerateImage} disabled={isLoadingPassageImage}>
-            {isLoadingPassageImage ? "Generating..." : "Generate image"}
-          </button>
-        </div>
-
         {passageError ? <p className="error-banner">{passageError}</p> : null}
 
-        <article className="study-passage-sheet">
-          {passage ? (
+        <article className="study-passage-sheet study-passage-sheet-compact">
+          {isLoadingPassage ? (
+            <div className="loading-panel">
+              <span className="loading-spinner" aria-hidden="true" />
+              <p className="empty-state">Loading passage...</p>
+            </div>
+          ) : passage ? (
             <>
               <div className="study-passage-heading">
-                <p className="section-label">Passage</p>
+                <div>
+                  <p className="section-label">Passage reference</p>
+                  <h3>{passage.reference}</h3>
+                </div>
                 <span className="surface-pill">{passage.translation}</span>
               </div>
               {passage.verses.length > 0 ? (
                 <div className="study-verse-flow">
-                  {passage.verses.map((verse) => (
-                    <div key={`${verse.book}-${verse.chapter}-${verse.verse}`} className="study-verse-row">
-                      <span className="study-verse-number">{verse.verse}</span>
-                      <p>{verse.text}</p>
-                    </div>
-                  ))}
+                  <p className="study-passage-text">
+                    {passage.verses.map((verse) => (
+                      <span key={`${verse.book}-${verse.chapter}-${verse.verse}`} className="study-verse-inline">
+                        <sup className="study-verse-number-inline">{verse.verse}</sup>
+                        <span>{verse.text}</span>{" "}
+                      </span>
+                    ))}
+                  </p>
                 </div>
               ) : (
                 <p className="study-passage-text">{passage.text}</p>
@@ -366,21 +402,24 @@ export function StudyWorkspace({
             <p className="empty-state">Fetch a passage to begin the study workspace.</p>
           )}
         </article>
-      </div>
 
-      <aside className="study-side-column">
-        <article className="prototype-card">
+        <div className="study-feature-grid">
+          <article className="prototype-card study-plan-card">
           <div className="card-header">
             <div>
               <p className="section-label">Study plan</p>
               <h3>{studyPlan?.passage_title ?? "Waiting for a plan"}</h3>
             </div>
-            {studyPlan ? <span className="surface-pill">{studyPlan.model}</span> : null}
           </div>
 
           {studyPlanError ? <p className="error-banner">{studyPlanError}</p> : null}
 
-          {studyPlan ? (
+          {isLoadingStudyPlan ? (
+            <div className="loading-panel">
+              <span className="loading-spinner" aria-hidden="true" />
+              <p className="empty-state">Generating study plan...</p>
+            </div>
+          ) : studyPlan ? (
             <div className="card-stack">
               <section>
                 <h4>Context</h4>
@@ -416,57 +455,46 @@ export function StudyWorkspace({
                   ))}
                 </ul>
               </section>
-              {hasUsage ? (
-                <p className="usage-note">
-                  Tokens: {studyPlan.usage?.prompt_tokens ?? 0} / {studyPlan.usage?.completion_tokens ?? 0} /{" "}
-                  {studyPlan.usage?.total_tokens ?? 0}
-                </p>
-              ) : null}
             </div>
           ) : (
             <p className="empty-state">Generate a study plan after setting your passage and goal.</p>
           )}
-        </article>
+          </article>
 
-        <article className="prototype-card">
-          <div className="card-header">
-            <div>
-              <p className="section-label">Visual context</p>
-              <h3>{passageImage ? "Generated image" : "Awaiting image"}</h3>
+          <article className="prototype-card study-image-card">
+            <div className="card-header">
+              <div>
+                <p className="section-label">Visual context</p>
+                <h3>{passageImage ? "Generated image" : "Awaiting image"}</h3>
+              </div>
+              <button type="button" className="ghost-button" onClick={onGenerateImage} disabled={isLoadingPassageImage}>
+                {isLoadingPassageImage ? (
+                  <>
+                    <span className="loading-spinner" aria-hidden="true" />
+                    <span>Generating...</span>
+                  </>
+                ) : (
+                  "Generate image"
+                )}
+              </button>
             </div>
-          </div>
-          {passageImageError ? <p className="error-banner">{passageImageError}</p> : null}
-          {passageImage ? (
-            <div className="card-stack">
-              <img className="image-preview" src={passageImage.image_b64_or_url} alt={passageImage.alt_text} />
-              <p className="prompt-note">{passageImage.alt_text}</p>
-            </div>
-          ) : (
-            <p className="empty-state">Generate an image to add a visual metaphor for the passage.</p>
-          )}
-        </article>
-
-        <article className="prototype-card">
-          <div className="card-header">
-            <div>
-              <p className="section-label">Personal notes</p>
-              <h3>Marginalia</h3>
-            </div>
-          </div>
-          <label className="field">
-            <span>Notes</span>
-            <textarea rows={6} value={userNotes} onChange={(event) => onUserNotesChange(event.target.value)} placeholder="Pen your insights here..." />
-          </label>
-          <label className="toggle-row">
-            <span>Include question notes</span>
-            <input
-              type="checkbox"
-              checked={includeQuestionNotes}
-              onChange={(event) => onIncludeQuestionNotesChange(event.target.checked)}
-            />
-          </label>
-        </article>
-      </aside>
+            {passageImageError ? <p className="error-banner">{passageImageError}</p> : null}
+            {isLoadingPassageImage ? (
+              <div className="loading-panel">
+                <span className="loading-spinner" aria-hidden="true" />
+                <p className="empty-state">Generating image...</p>
+              </div>
+            ) : passageImage ? (
+              <div className="card-stack">
+                <img className="image-preview" src={passageImage.image_b64_or_url} alt={passageImage.alt_text} />
+                <p className="prompt-note">{passageImage.alt_text}</p>
+              </div>
+            ) : (
+              <p className="empty-state">Generate an image to add a visual metaphor for the passage.</p>
+            )}
+          </article>
+        </div>
+      </div>
     </section>
   );
 }

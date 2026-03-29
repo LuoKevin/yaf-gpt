@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 
 import { DiscussionWorkspace } from "./components/DiscussionWorkspace";
 import { MusicWorkspace } from "./components/MusicWorkspace";
@@ -48,28 +48,39 @@ export default function App() {
   const [passageImageError, setPassageImageError] = useState("");
   const [isLoadingPassageImage, setIsLoadingPassageImage] = useState(false);
 
-  const [personaInput, setPersonaInput] = useState("");
-  const [personaMessages, setPersonaMessages] = useState<PersonaChatMessage[]>([]);
-  const [personaModel, setPersonaModel] = useState<string | null>(null);
-  const [personaError, setPersonaError] = useState("");
-  const [isSendingPersona, setIsSendingPersona] = useState(false);
-  const [isRecordingPersona, setIsRecordingPersona] = useState(false);
-  const [isTranscribingPersona, setIsTranscribingPersona] = useState(false);
-  const [enableVoiceReply, setEnableVoiceReply] = useState(true);
+  const [chatInput, setChatInput] = useState("");
+  const [chatMessages, setChatMessages] = useState<PersonaChatMessage[]>([]);
+  const [chatModel, setChatModel] = useState<string | null>(null);
+  const [chatError, setChatError] = useState("");
+  const [isSendingChat, setIsSendingChat] = useState(false);
+
+  const [discussionMessages, setDiscussionMessages] = useState<PersonaChatMessage[]>([]);
+  const [discussionModel, setDiscussionModel] = useState<string | null>(null);
+  const [discussionError, setDiscussionError] = useState("");
+  const [isSendingDiscussion, setIsSendingDiscussion] = useState(false);
+  const [isRecordingDiscussion, setIsRecordingDiscussion] = useState(false);
+  const [isTranscribingDiscussion, setIsTranscribingDiscussion] = useState(false);
   const [isRealtimeVoiceConnecting, setIsRealtimeVoiceConnecting] = useState(false);
   const [isRealtimeVoiceActive, setIsRealtimeVoiceActive] = useState(false);
   const [realtimeVoiceStatus, setRealtimeVoiceStatus] = useState("");
+  const [realtimeVoiceLevel, setRealtimeVoiceLevel] = useState(0);
 
-  const personaRecorderRef = useRef<MediaRecorder | null>(null);
-  const personaStreamRef = useRef<MediaStream | null>(null);
-  const personaChunksRef = useRef<Blob[]>([]);
+  const discussionRecorderRef = useRef<MediaRecorder | null>(null);
+  const discussionStreamRef = useRef<MediaStream | null>(null);
+  const discussionChunksRef = useRef<Blob[]>([]);
   const realtimePeerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const realtimeDataChannelRef = useRef<RTCDataChannel | null>(null);
   const realtimeLocalStreamRef = useRef<MediaStream | null>(null);
   const realtimeAudioRef = useRef<HTMLAudioElement | null>(null);
-  const realtimeAssistantItemIdRef = useRef<string | null>(null);
+  const realtimeHasOpenAssistantMessageRef = useRef(false);
   const realtimeUserTranscriptItemIdsRef = useRef<Set<string>>(new Set());
   const realtimeFinalizedAssistantItemIdsRef = useRef<Set<string>>(new Set());
+  const realtimeAudioContextRef = useRef<AudioContext | null>(null);
+  const realtimeAnalyserRef = useRef<AnalyserNode | null>(null);
+  const realtimeAudioSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const realtimeVoiceLevelFrameRef = useRef<number | null>(null);
+  const realtimePublishedVoiceLevelRef = useRef(0);
+  const realtimeSmoothedVoiceLevelRef = useRef(0);
 
   const [musicPrompt, setMusicPrompt] = useState("");
   const [musicStyle, setMusicStyle] = useState("modern worship, acoustic");
@@ -115,13 +126,13 @@ export default function App() {
     };
   }, [musicJobId, musicJobStatus]);
 
-  function releasePersonaMediaResources() {
-    if (personaStreamRef.current) {
-      personaStreamRef.current.getTracks().forEach((track) => track.stop());
+  function releaseDiscussionMediaResources() {
+    if (discussionStreamRef.current) {
+      discussionStreamRef.current.getTracks().forEach((track) => track.stop());
     }
-    personaStreamRef.current = null;
-    personaRecorderRef.current = null;
-    personaChunksRef.current = [];
+    discussionStreamRef.current = null;
+    discussionRecorderRef.current = null;
+    discussionChunksRef.current = [];
   }
 
   function getRealtimeAudioElement() {
@@ -131,6 +142,96 @@ export default function App() {
       realtimeAudioRef.current = audio;
     }
     return realtimeAudioRef.current;
+  }
+
+  function stopRealtimeVoiceLevelMonitoring() {
+    if (realtimeVoiceLevelFrameRef.current !== null) {
+      window.cancelAnimationFrame(realtimeVoiceLevelFrameRef.current);
+      realtimeVoiceLevelFrameRef.current = null;
+    }
+
+    try {
+      realtimeAudioSourceRef.current?.disconnect();
+    } catch {
+      // Ignore cleanup failures from disconnected nodes.
+    }
+
+    try {
+      realtimeAnalyserRef.current?.disconnect();
+    } catch {
+      // Ignore cleanup failures from disconnected nodes.
+    }
+
+    const audioContext = realtimeAudioContextRef.current;
+    if (audioContext) {
+      void audioContext.close().catch(() => {
+        // Ignore close failures during teardown.
+      });
+    }
+
+    realtimeAudioContextRef.current = null;
+    realtimeAnalyserRef.current = null;
+    realtimeAudioSourceRef.current = null;
+    realtimePublishedVoiceLevelRef.current = 0;
+    realtimeSmoothedVoiceLevelRef.current = 0;
+    setRealtimeVoiceLevel(0);
+  }
+
+  function startRealtimeVoiceLevelMonitoring(stream: MediaStream) {
+    stopRealtimeVoiceLevelMonitoring();
+
+    if (typeof window === "undefined" || typeof window.AudioContext === "undefined") {
+      return;
+    }
+
+    try {
+      const audioContext = new window.AudioContext();
+      const analyser = audioContext.createAnalyser();
+      analyser.fftSize = 256;
+      analyser.smoothingTimeConstant = 0.82;
+
+      const source = audioContext.createMediaStreamSource(stream);
+      source.connect(analyser);
+
+      realtimeAudioContextRef.current = audioContext;
+      realtimeAnalyserRef.current = analyser;
+      realtimeAudioSourceRef.current = source;
+
+      void audioContext.resume().catch(() => {
+        // Ignore resume failures and fall back to the base pulse.
+      });
+
+      const data = new Uint8Array(analyser.fftSize);
+      let lastPublishedAt = 0;
+
+      const tick = (time: number) => {
+        analyser.getByteTimeDomainData(data);
+
+        let sumSquares = 0;
+        for (const sample of data) {
+          const centered = (sample - 128) / 128;
+          sumSquares += centered * centered;
+        }
+
+        const rms = Math.sqrt(sumSquares / data.length);
+        const normalizedLevel = Math.min(1, Math.max(0, (rms - 0.015) * 18));
+        const smoothedLevel = realtimeSmoothedVoiceLevelRef.current * 0.82 + normalizedLevel * 0.18;
+        realtimeSmoothedVoiceLevelRef.current = smoothedLevel;
+
+        if (time - lastPublishedAt >= 50 || Math.abs(smoothedLevel - realtimePublishedVoiceLevelRef.current) >= 0.035) {
+          const nextLevel = Number(smoothedLevel.toFixed(3));
+          realtimePublishedVoiceLevelRef.current = nextLevel;
+          setRealtimeVoiceLevel(nextLevel);
+          lastPublishedAt = time;
+        }
+
+        realtimeVoiceLevelFrameRef.current = window.requestAnimationFrame(tick);
+      };
+
+      realtimeVoiceLevelFrameRef.current = window.requestAnimationFrame(tick);
+    } catch {
+      stopRealtimeVoiceLevelMonitoring();
+    }
   }
 
   function stopRealtimeVoiceSession() {
@@ -151,7 +252,8 @@ export default function App() {
       audio.srcObject = null;
     }
 
-    realtimeAssistantItemIdRef.current = null;
+    stopRealtimeVoiceLevelMonitoring();
+    realtimeHasOpenAssistantMessageRef.current = false;
     realtimeUserTranscriptItemIdsRef.current.clear();
     realtimeFinalizedAssistantItemIdsRef.current.clear();
     setIsRealtimeVoiceConnecting(false);
@@ -166,7 +268,7 @@ export default function App() {
     }
 
     realtimeUserTranscriptItemIdsRef.current.add(itemId);
-    setPersonaMessages((current) => [...current, { role: "user", content: cleaned }]);
+    setDiscussionMessages((current) => [...current, { role: "user", content: cleaned }]);
   }
 
   function appendRealtimeAssistantDelta(itemId: string, delta: string) {
@@ -174,19 +276,16 @@ export default function App() {
       return;
     }
 
-    setPersonaMessages((current) => {
-      if (realtimeAssistantItemIdRef.current !== itemId) {
-        realtimeAssistantItemIdRef.current = itemId;
-        return [...current, { role: "assistant", content: delta }];
-      }
-
+    setDiscussionMessages((current) => {
       if (current.length === 0) {
+        realtimeHasOpenAssistantMessageRef.current = true;
         return [{ role: "assistant", content: delta }];
       }
 
       const next = [...current];
       const last = next[next.length - 1];
-      if (last.role !== "assistant") {
+      if (!realtimeHasOpenAssistantMessageRef.current || last.role !== "assistant") {
+        realtimeHasOpenAssistantMessageRef.current = true;
         next.push({ role: "assistant", content: delta });
         return next;
       }
@@ -199,21 +298,21 @@ export default function App() {
   function finalizeRealtimeAssistantTranscript(itemId: string, transcript: string) {
     const cleaned = transcript.trim();
     if (!cleaned) {
-      realtimeAssistantItemIdRef.current = null;
+      realtimeHasOpenAssistantMessageRef.current = false;
       return;
     }
     if (realtimeFinalizedAssistantItemIdsRef.current.has(itemId)) {
       return;
     }
 
-    setPersonaMessages((current) => {
+    setDiscussionMessages((current) => {
       if (current.length === 0) {
         return [{ role: "assistant", content: cleaned }];
       }
 
       const next = [...current];
       const last = next[next.length - 1];
-      if (realtimeAssistantItemIdRef.current === itemId && last.role === "assistant") {
+      if (realtimeHasOpenAssistantMessageRef.current && last.role === "assistant") {
         next[next.length - 1] = { role: "assistant", content: cleaned };
         return next;
       }
@@ -226,7 +325,7 @@ export default function App() {
     });
 
     realtimeFinalizedAssistantItemIdsRef.current.add(itemId);
-    realtimeAssistantItemIdRef.current = null;
+    realtimeHasOpenAssistantMessageRef.current = false;
   }
 
   function handleRealtimeServerEvent(event: unknown, model: string, voice: RealtimeVoice) {
@@ -240,8 +339,8 @@ export default function App() {
     }
 
     if (eventType === "session.created" || eventType === "session.updated") {
-      setPersonaModel(model);
-      setRealtimeVoiceStatus(`Live voice connected on ${model} (${voice}).`);
+      setDiscussionModel(model);
+      setRealtimeVoiceStatus("Live voice connected.");
       return;
     }
 
@@ -281,93 +380,72 @@ export default function App() {
         typeof event.error.message === "string"
           ? event.error.message
           : "Realtime voice session failed.";
-      setPersonaError(detail);
+      setDiscussionError(detail);
       stopRealtimeVoiceSession();
     }
   }
 
   useEffect(() => {
     return () => {
-      if (personaRecorderRef.current && personaRecorderRef.current.state !== "inactive") {
-        personaRecorderRef.current.stop();
+      if (discussionRecorderRef.current && discussionRecorderRef.current.state !== "inactive") {
+        discussionRecorderRef.current.stop();
       }
       stopRealtimeVoiceSession();
       if (typeof window !== "undefined" && "speechSynthesis" in window) {
         window.speechSynthesis.cancel();
       }
-      releasePersonaMediaResources();
+      releaseDiscussionMediaResources();
     };
   }, []);
 
-  async function handlePassageLookup() {
+  async function handleStudyRequestSubmit() {
     const trimmedReference = reference.trim();
     if (!trimmedReference) {
       setPassageError("Enter a reference.");
-      return;
-    }
-
-    setIsLoadingPassage(true);
-    setPassageError("");
-
-    try {
-      const response = await requestJson<BiblePassageResponse>("/api/bible/passage", undefined, {
-        reference: trimmedReference,
-        translation
-      });
-      setPassage(response);
-    } catch (error) {
-      setPassage(null);
-      setPassageError(error instanceof Error ? error.message : "Unable to load passage.");
-    } finally {
-      setIsLoadingPassage(false);
-    }
-  }
-
-  async function handleStudyPlanGeneration() {
-    const trimmedReference = reference.trim();
-    if (!trimmedReference) {
       setStudyPlanError("Enter a reference.");
       return;
     }
 
+    setIsLoadingPassage(true);
     setIsLoadingStudyPlan(true);
+    setPassageError("");
     setStudyPlanError("");
 
     try {
-      const canReusePassage =
-        passage !== null &&
-        normalizeReference(passage.reference) === normalizeReference(trimmedReference) &&
-        passage.translation === translation;
-
-      const response = await requestJson<StudyPlanResponse>("/api/study-plan", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          reference: trimmedReference,
-          translation,
-          goals: goals.trim() || undefined,
-          user_notes: userNotes.trim() || undefined,
-          include_question_notes: includeQuestionNotes,
-          passage_text: canReusePassage ? passage.text : undefined
+      const [passageResponse, studyPlanResponse] = await Promise.all([
+        requestJson<BiblePassageResponse>(
+          "/api/bible/passage",
+          undefined,
+          {
+            reference: trimmedReference,
+            translation
+          }
+        ),
+        requestJson<StudyPlanResponse>("/api/study-plan", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            reference: trimmedReference,
+            translation,
+            goals: goals.trim() || undefined,
+            user_notes: userNotes.trim() || undefined,
+            include_question_notes: includeQuestionNotes,
+          })
         })
-      });
+      ]);
 
-      setStudyPlan(response);
-      if (!canReusePassage) {
-        setPassage({
-          reference: response.reference,
-          normalized_reference: response.normalized_reference,
-          translation: response.translation,
-          text: response.passage_text,
-          verses: []
-        });
-      }
+      setPassage(passageResponse);
+      setStudyPlan(studyPlanResponse);
     } catch (error) {
       setStudyPlan(null);
-      setStudyPlanError(error instanceof Error ? error.message : "Unable to generate study plan.");
+      setPassage(null);
+      const detail = error instanceof Error ? error.message : "Unable to generate study.";
+      setPassageError(detail);
+      setStudyPlanError(detail);
     } finally {
+      setIsLoadingPassage(false);
       setIsLoadingStudyPlan(false);
     }
   }
@@ -403,32 +481,33 @@ export default function App() {
     }
   }
 
-  function speakPersonaReply(replyText: string) {
-    const cleaned = replyText.trim();
-    if (!cleaned || !enableVoiceReply) {
-      return;
-    }
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) {
-      return;
-    }
-
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(cleaned);
-    utterance.rate = 1;
-    window.speechSynthesis.speak(utterance);
-  }
-
-  async function sendPersonaMessage(rawMessage: string) {
+  async function streamWorkspaceMessage({
+    rawMessage,
+    currentMessages,
+    setMessages,
+    setError,
+    setIsSending,
+    setModel,
+    onReplyFinished,
+  }: {
+    rawMessage: string;
+    currentMessages: PersonaChatMessage[];
+    setMessages: Dispatch<SetStateAction<PersonaChatMessage[]>>;
+    setError: Dispatch<SetStateAction<string>>;
+    setIsSending: Dispatch<SetStateAction<boolean>>;
+    setModel: Dispatch<SetStateAction<string | null>>;
+    onReplyFinished?: (replyText: string) => void;
+  }) {
     const userMessage = rawMessage.trim();
     if (!userMessage) {
-      setPersonaError("Type a message.");
+      setError("Type a message.");
       return;
     }
 
-    const nextMessages = [...personaMessages, { role: "user", content: userMessage } as PersonaChatMessage];
-    setPersonaMessages([...nextMessages, { role: "assistant", content: "" }]);
-    setPersonaError("");
-    setIsSendingPersona(true);
+    const nextMessages = [...currentMessages, { role: "user", content: userMessage } as PersonaChatMessage];
+    setMessages([...nextMessages, { role: "assistant", content: "" }]);
+    setError("");
+    setIsSending(true);
 
     try {
       let streamedModel: string | null = null;
@@ -442,9 +521,7 @@ export default function App() {
             "Content-Type": "application/json"
           },
           body: JSON.stringify({
-            messages: nextMessages,
-            reference_context: reference.trim() || undefined,
-            translation
+            messages: nextMessages
           })
         },
         ({ event, data }: SseEventPayload) => {
@@ -471,7 +548,7 @@ export default function App() {
             if (delta && delta.length > 0) {
               assistantReply += delta;
               receivedChunk = true;
-              setPersonaMessages((current) => {
+              setMessages((current) => {
                 if (current.length === 0) {
                   return [{ role: "assistant", content: delta }];
                 }
@@ -502,10 +579,10 @@ export default function App() {
       );
 
       if (streamedModel) {
-        setPersonaModel(streamedModel);
+        setModel(streamedModel);
       }
       if (!receivedChunk) {
-        setPersonaMessages((current) => {
+        setMessages((current) => {
           if (current.length === 0) {
             return current;
           }
@@ -515,13 +592,11 @@ export default function App() {
           }
           return current;
         });
-      } else {
-        if (activeView !== "chat") {
-          speakPersonaReply(assistantReply);
-        }
+      } else if (onReplyFinished) {
+        onReplyFinished(assistantReply);
       }
     } catch (error) {
-      setPersonaMessages((current) => {
+      setMessages((current) => {
         if (current.length === 0) {
           return current;
         }
@@ -531,25 +606,43 @@ export default function App() {
         }
         return current;
       });
-      setPersonaError(error instanceof Error ? error.message : "Unable to send message.");
+      setError(error instanceof Error ? error.message : "Unable to send message.");
     } finally {
-      setIsSendingPersona(false);
+      setIsSending(false);
     }
   }
 
-  async function handlePersonaSend() {
-    const userMessage = personaInput.trim();
+  async function handleTextChatSend() {
+    const userMessage = chatInput.trim();
     if (!userMessage) {
-      setPersonaError("Type a message.");
+      setChatError("Type a message.");
       return;
     }
-    setPersonaInput("");
-    await sendPersonaMessage(userMessage);
+    setChatInput("");
+    await streamWorkspaceMessage({
+      rawMessage: userMessage,
+      currentMessages: chatMessages,
+      setMessages: setChatMessages,
+      setError: setChatError,
+      setIsSending: setIsSendingChat,
+      setModel: setChatModel,
+    });
   }
 
-  async function transcribePersonaRecording(blob: Blob) {
-    setIsTranscribingPersona(true);
-    setPersonaError("");
+  async function sendDiscussionMessage(rawMessage: string) {
+    await streamWorkspaceMessage({
+      rawMessage,
+      currentMessages: discussionMessages,
+      setMessages: setDiscussionMessages,
+      setError: setDiscussionError,
+      setIsSending: setIsSendingDiscussion,
+      setModel: setDiscussionModel
+    });
+  }
+
+  async function transcribeDiscussionRecording(blob: Blob) {
+    setIsTranscribingDiscussion(true);
+    setDiscussionError("");
 
     try {
       const audioBase64 = await blobToDataUrl(blob);
@@ -565,24 +658,24 @@ export default function App() {
         })
       });
 
-      await sendPersonaMessage(response.transcript);
+      await sendDiscussionMessage(response.transcript);
     } catch (error) {
-      setPersonaError(error instanceof Error ? error.message : "Unable to process recorded audio.");
+      setDiscussionError(error instanceof Error ? error.message : "Unable to process recorded audio.");
     } finally {
-      setIsTranscribingPersona(false);
+      setIsTranscribingDiscussion(false);
     }
   }
 
-  async function startPersonaRecording() {
-    if (isRecordingPersona || isSendingPersona || isTranscribingPersona) {
+  async function startDiscussionRecording() {
+    if (isRecordingDiscussion || isSendingDiscussion || isTranscribingDiscussion) {
       return;
     }
     if (typeof window === "undefined" || typeof MediaRecorder === "undefined") {
-      setPersonaError("Voice input is not supported in this browser.");
+      setDiscussionError("Voice input is not supported in this browser.");
       return;
     }
     if (!navigator.mediaDevices?.getUserMedia) {
-      setPersonaError("Microphone access is not available in this browser.");
+      setDiscussionError("Microphone access is not available in this browser.");
       return;
     }
 
@@ -595,68 +688,68 @@ export default function App() {
         ? new MediaRecorder(stream, { mimeType: preferredMimeType })
         : new MediaRecorder(stream);
 
-      personaStreamRef.current = stream;
-      personaRecorderRef.current = recorder;
-      personaChunksRef.current = [];
+      discussionStreamRef.current = stream;
+      discussionRecorderRef.current = recorder;
+      discussionChunksRef.current = [];
 
       recorder.ondataavailable = (event) => {
         if (event.data && event.data.size > 0) {
-          personaChunksRef.current.push(event.data);
+          discussionChunksRef.current.push(event.data);
         }
       };
 
       recorder.onerror = () => {
-        setPersonaError("Recording failed.");
-        setIsRecordingPersona(false);
-        releasePersonaMediaResources();
+        setDiscussionError("Recording failed.");
+        setIsRecordingDiscussion(false);
+        releaseDiscussionMediaResources();
       };
 
       recorder.onstop = () => {
-        const chunks = [...personaChunksRef.current];
+        const chunks = [...discussionChunksRef.current];
         const blobType = recorder.mimeType || "audio/webm";
-        setIsRecordingPersona(false);
-        releasePersonaMediaResources();
+        setIsRecordingDiscussion(false);
+        releaseDiscussionMediaResources();
 
         if (chunks.length === 0) {
-          setPersonaError("No audio captured.");
+          setDiscussionError("No audio captured.");
           return;
         }
 
         const recording = new Blob(chunks, { type: blobType });
-        void transcribePersonaRecording(recording);
+        void transcribeDiscussionRecording(recording);
       };
 
-      setPersonaError("");
+      setDiscussionError("");
       recorder.start();
-      setIsRecordingPersona(true);
+      setIsRecordingDiscussion(true);
     } catch (error) {
-      setPersonaError(error instanceof Error ? error.message : "Unable to access microphone.");
-      setIsRecordingPersona(false);
-      releasePersonaMediaResources();
+      setDiscussionError(error instanceof Error ? error.message : "Unable to access microphone.");
+      setIsRecordingDiscussion(false);
+      releaseDiscussionMediaResources();
     }
   }
 
-  function stopPersonaRecording() {
-    if (!personaRecorderRef.current || personaRecorderRef.current.state === "inactive") {
+  function stopDiscussionRecording() {
+    if (!discussionRecorderRef.current || discussionRecorderRef.current.state === "inactive") {
       return;
     }
-    personaRecorderRef.current.stop();
+    discussionRecorderRef.current.stop();
   }
 
   async function startRealtimeVoiceSession() {
-    if (isRealtimeVoiceActive || isRealtimeVoiceConnecting || isSendingPersona || isRecordingPersona || isTranscribingPersona) {
+    if (isRealtimeVoiceActive || isRealtimeVoiceConnecting || isSendingDiscussion || isRecordingDiscussion || isTranscribingDiscussion) {
       return;
     }
     if (typeof window === "undefined" || typeof RTCPeerConnection === "undefined") {
-      setPersonaError("Live voice requires WebRTC support in this browser.");
+      setDiscussionError("Live voice requires WebRTC support in this browser.");
       return;
     }
     if (!navigator.mediaDevices?.getUserMedia) {
-      setPersonaError("Microphone access is not available in this browser.");
+      setDiscussionError("Microphone access is not available in this browser.");
       return;
     }
 
-    setPersonaError("");
+    setDiscussionError("");
     setIsRealtimeVoiceConnecting(true);
     setRealtimeVoiceStatus("Connecting live voice...");
 
@@ -667,8 +760,6 @@ export default function App() {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          reference_context: reference.trim() || undefined,
-          translation,
           voice: "cedar"
         })
       });
@@ -688,7 +779,9 @@ export default function App() {
       realtimePeerConnectionRef.current = peerConnection;
 
       peerConnection.ontrack = (event) => {
-        audio.srcObject = event.streams[0] ?? null;
+        const remoteStream = event.streams[0] ?? new MediaStream([event.track]);
+        audio.srcObject = remoteStream;
+        startRealtimeVoiceLevelMonitoring(remoteStream);
         void audio.play().catch(() => {
           setRealtimeVoiceStatus("Live voice connected. Tap the page if audio playback is blocked.");
         });
@@ -699,15 +792,15 @@ export default function App() {
         if (state === "connected") {
           setIsRealtimeVoiceConnecting(false);
           setIsRealtimeVoiceActive(true);
-          setPersonaModel(session.model);
-          setRealtimeVoiceStatus(`Live voice connected on ${session.model} (${session.voice}).`);
+          setDiscussionModel(session.model);
+          setRealtimeVoiceStatus("Live voice connected.");
           return;
         }
 
         if (state === "failed" || state === "closed" || state === "disconnected") {
           stopRealtimeVoiceSession();
           if (state === "failed") {
-            setPersonaError("Live voice connection dropped.");
+            setDiscussionError("Live voice connection dropped.");
           }
         }
       };
@@ -723,7 +816,7 @@ export default function App() {
         }
       };
       dataChannel.onerror = () => {
-        setPersonaError("Live voice event channel failed.");
+        setDiscussionError("Live voice event channel failed.");
       };
       dataChannel.onmessage = (messageEvent) => {
         try {
@@ -757,7 +850,7 @@ export default function App() {
       });
     } catch (error) {
       stopRealtimeVoiceSession();
-      setPersonaError(error instanceof Error ? error.message : "Unable to start live voice.");
+      setDiscussionError(error instanceof Error ? error.message : "Unable to start live voice.");
     } finally {
       setIsRealtimeVoiceConnecting(false);
     }
@@ -772,21 +865,29 @@ export default function App() {
     await startRealtimeVoiceSession();
   }
 
-  function handlePersonaReset() {
-    if (personaRecorderRef.current && personaRecorderRef.current.state !== "inactive") {
-      personaRecorderRef.current.stop();
+  function handleDiscussionReset() {
+    if (discussionRecorderRef.current && discussionRecorderRef.current.state !== "inactive") {
+      discussionRecorderRef.current.stop();
     }
     stopRealtimeVoiceSession();
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
       window.speechSynthesis.cancel();
     }
-    releasePersonaMediaResources();
-    setPersonaMessages([]);
-    setPersonaModel(null);
-    setPersonaError("");
-    setPersonaInput("");
-    setIsRecordingPersona(false);
-    setIsTranscribingPersona(false);
+    releaseDiscussionMediaResources();
+    setDiscussionMessages([]);
+    setDiscussionModel(null);
+    setDiscussionError("");
+    setIsSendingDiscussion(false);
+    setIsRecordingDiscussion(false);
+    setIsTranscribingDiscussion(false);
+  }
+
+  function handleTextChatReset() {
+    setChatMessages([]);
+    setChatModel(null);
+    setChatError("");
+    setChatInput("");
+    setIsSendingChat(false);
   }
 
   async function handleMusicGeneration() {
@@ -829,7 +930,6 @@ export default function App() {
     }
   }
 
-  const hasUsage = studyPlan?.usage?.total_tokens != null;
   const musicStatusLabel = useMemo(() => {
     if (!musicJobStatus) {
       return "queued";
@@ -848,18 +948,6 @@ export default function App() {
     }
     return "Music Draft";
   }, [activeView]);
-  const activeViewCopy = useMemo(() => {
-    if (activeView === "chat") {
-      return "Use a simpler ChatGPT-style text thread for quick questions, grounded by the same passage context and mentor behavior as the rest of the workspace.";
-    }
-    if (activeView === "study") {
-      return "Shape a sharper small-group guide with grounded context, discussion flow, and a companion passage image in one place.";
-    }
-    if (activeView === "discussion") {
-      return "Keep the mentor conversation focused, with typed chat, voice input, and live voice sessions built around the same passage context.";
-    }
-    return "Turn a passage direction into a more coherent music brief, then follow the job through to generated audio.";
-  }, [activeView]);
 
   return (
     <div className={`shell ${isSidebarCollapsed ? "shell-collapsed" : ""}`}>
@@ -868,18 +956,14 @@ export default function App() {
         isCollapsed={isSidebarCollapsed}
         onChange={setActiveView}
         onToggleCollapse={() => setIsSidebarCollapsed((current) => !current)}
-        onNewChat={handlePersonaReset}
+        onNewChat={handleTextChatReset}
       />
 
       <div className="shell-content">
         <header className="app-topbar">
           <div className="app-topbar-copy">
             <span className="app-brand">YAF-GPT</span>
-            <span className="app-divider" />
-            <div>
-              <p className="app-topbar-title">{activeViewLabel}</p>
-              <p className="app-topbar-subtitle">{activeViewCopy}</p>
-            </div>
+            <p className="app-topbar-title">{activeViewLabel}</p>
           </div>
 
         </header>
@@ -889,23 +973,19 @@ export default function App() {
         >
           {activeView === "chat" ? (
             <TextChatWorkspace
-              personaModel={personaModel}
-              personaError={personaError}
-              personaMessages={personaMessages}
-              personaInput={personaInput}
-              isSendingPersona={isSendingPersona}
-              onPersonaInputChange={setPersonaInput}
-              onPersonaSend={handlePersonaSend}
+              personaError={chatError}
+              personaMessages={chatMessages}
+              personaInput={chatInput}
+              isSendingPersona={isSendingChat}
+              onPersonaInputChange={setChatInput}
+              onPersonaSend={handleTextChatSend}
             />
           ) : null}
 
           {activeView === "study" ? (
             <StudyWorkspace
               reference={reference}
-              translation={translation}
               goals={goals}
-              userNotes={userNotes}
-              includeQuestionNotes={includeQuestionNotes}
               passage={passage}
               studyPlan={studyPlan}
               passageError={passageError}
@@ -915,37 +995,24 @@ export default function App() {
               isLoadingPassage={isLoadingPassage}
               isLoadingStudyPlan={isLoadingStudyPlan}
               isLoadingPassageImage={isLoadingPassageImage}
-              hasUsage={hasUsage}
               onReferenceChange={setReference}
-              onTranslationChange={setTranslation}
               onGoalsChange={setGoals}
-              onUserNotesChange={setUserNotes}
-              onIncludeQuestionNotesChange={setIncludeQuestionNotes}
-              onFetchPassage={handlePassageLookup}
-              onGeneratePlan={handleStudyPlanGeneration}
+              onSubmitStudyRequest={handleStudyRequestSubmit}
               onGenerateImage={handlePassageImageGeneration}
             />
           ) : null}
 
           {activeView === "discussion" ? (
             <DiscussionWorkspace
-              personaModel={personaModel}
-              personaError={personaError}
-              personaMessages={personaMessages}
-              personaInput={personaInput}
-              enableVoiceReply={enableVoiceReply}
-              isSendingPersona={isSendingPersona}
-              isRecordingPersona={isRecordingPersona}
-              isTranscribingPersona={isTranscribingPersona}
+              personaError={discussionError}
+              personaMessages={discussionMessages}
+              isSendingPersona={isSendingDiscussion}
+              isTranscribingPersona={isTranscribingDiscussion}
               isRealtimeVoiceConnecting={isRealtimeVoiceConnecting}
               isRealtimeVoiceActive={isRealtimeVoiceActive}
+              realtimeVoiceLevel={realtimeVoiceLevel}
               realtimeVoiceStatus={realtimeVoiceStatus}
-              onPersonaInputChange={setPersonaInput}
-              onPersonaSend={handlePersonaSend}
-              onPersonaVoiceToggle={isRecordingPersona ? stopPersonaRecording : () => void startPersonaRecording()}
               onRealtimeVoiceToggle={handleRealtimeVoiceToggle}
-              onPersonaReset={handlePersonaReset}
-              onEnableVoiceReplyChange={setEnableVoiceReply}
             />
           ) : null}
 

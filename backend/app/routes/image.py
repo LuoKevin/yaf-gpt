@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
+from ..rate_limit import limit_requests
 from ...services.study_plan.bible_lookup import (
     InvalidReferenceError,
     PassageNotFoundError,
@@ -26,8 +27,10 @@ def get_passage_image_service() -> PassageImageService:
     responses={
         400: {"model": APIErrorResponse},
         404: {"model": APIErrorResponse},
+        429: {"model": APIErrorResponse},
         502: {"model": APIErrorResponse},
     },
+    dependencies=[Depends(limit_requests(bucket="passage-image", max_requests=10))],
 )
 def create_passage_image(
     payload: PassageImageRequest,

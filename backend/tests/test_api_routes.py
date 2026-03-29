@@ -5,6 +5,7 @@ import unittest
 from fastapi.testclient import TestClient
 
 from backend.app.main import app
+from backend.app.rate_limit import clear_rate_limit_store
 from backend.app.routes.bible import get_bible_provider
 from backend.app.routes.chat import get_persona_chat_service
 from backend.app.routes.image import get_passage_image_service
@@ -203,6 +204,7 @@ class _MusicGenerationServiceStub:
 
 class APIRouteTests(unittest.TestCase):
     def setUp(self) -> None:
+        clear_rate_limit_store()
         app.dependency_overrides[get_bible_provider] = lambda: _BibleProviderStub()
         app.dependency_overrides[get_study_plan_service] = lambda: _StudyPlanServiceStub()
         app.dependency_overrides[get_passage_image_service] = lambda: _PassageImageServiceStub()
@@ -215,6 +217,7 @@ class APIRouteTests(unittest.TestCase):
 
     def tearDown(self) -> None:
         app.dependency_overrides.clear()
+        clear_rate_limit_store()
 
     def test_bible_passage_success(self) -> None:
         response = self.client.get("/api/bible/passage", params={"reference": "John 3:16-18"})
@@ -254,6 +257,24 @@ class APIRouteTests(unittest.TestCase):
             json={"reference": "Malformed 1:1", "translation": "WEB"},
         )
         self.assertEqual(response.status_code, 502)
+
+    def test_study_plan_rate_limit_maps_to_429(self) -> None:
+        for _ in range(10):
+            response = self.client.post(
+                "/api/study-plan",
+                json={"reference": "Luke 21:5-28", "translation": "WEB"},
+            )
+            self.assertEqual(response.status_code, 200)
+
+        response = self.client.post(
+            "/api/study-plan",
+            json={"reference": "Luke 21:5-28", "translation": "WEB"},
+        )
+        self.assertEqual(response.status_code, 429)
+        self.assertEqual(
+            response.json()["detail"],
+            "Too many requests. Please wait a moment and try again.",
+        )
 
     def test_passage_image_success(self) -> None:
         response = self.client.post(

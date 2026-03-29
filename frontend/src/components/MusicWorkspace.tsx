@@ -61,7 +61,14 @@ export function MusicWorkspace({
             </label>
           </div>
           <button type="button" className="primary-button wide-button" onClick={onGenerateMusic} disabled={isGeneratingMusic}>
-            {isGeneratingMusic ? "Generating..." : "Generate composition"}
+            {isGeneratingMusic ? (
+              <>
+                <span className="loading-spinner" aria-hidden="true" />
+                <span>Generating...</span>
+              </>
+            ) : (
+              "Generate composition"
+            )}
           </button>
         </div>
       </div>
@@ -100,7 +107,10 @@ export function MusicWorkspace({
             {musicJob?.audio_url ? (
               <audio controls src={musicJob.audio_url} />
             ) : (
-              <p className="empty-state">Audio is still pending from the provider.</p>
+              <div className="loading-panel">
+                <span className="loading-spinner" aria-hidden="true" />
+                <p className="empty-state">Audio is still pending from the provider.</p>
+              </div>
             )}
           </div>
         ) : (

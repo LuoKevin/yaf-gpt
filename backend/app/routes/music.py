@@ -4,6 +4,7 @@ from functools import lru_cache
 
 from fastapi import APIRouter, Depends, HTTPException, Path, status
 
+from ..rate_limit import limit_requests
 from ...services.music_generation import MusicGenerationService
 from ..schemas import APIErrorResponse, MusicGenerateRequest, MusicGenerateResponse, MusicJobResponse
 
@@ -20,8 +21,10 @@ def get_music_generation_service() -> MusicGenerationService:
     response_model=MusicGenerateResponse,
     responses={
         400: {"model": APIErrorResponse},
+        429: {"model": APIErrorResponse},
         502: {"model": APIErrorResponse},
     },
+    dependencies=[Depends(limit_requests(bucket="music-generate", max_requests=10))],
 )
 def generate_music(
     payload: MusicGenerateRequest,

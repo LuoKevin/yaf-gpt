@@ -73,9 +73,23 @@ export function ViewSwitcher({ activeView, isCollapsed, onChange, onToggleCollap
             ) : null}
           </button>
         ))}
+        {isCollapsed && activeView === "chat" && onNewChat ? (
+          <button
+            type="button"
+            className="view-button sidebar-new-chat-inline"
+            onClick={onNewChat}
+            aria-label="Start a new chat"
+            title="New chat"
+            data-tooltip="New chat"
+          >
+            <span className="view-icon" aria-hidden="true">
+              <span className="material-symbols-outlined">add_comment</span>
+            </span>
+          </button>
+        ) : null}
       </nav>
 
-      {activeView === "chat" && onNewChat ? (
+      {!isCollapsed && activeView === "chat" && onNewChat ? (
         <div className="sidebar-utility">
           <button
             type="button"

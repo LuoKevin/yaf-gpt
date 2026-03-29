@@ -6,6 +6,7 @@ from .bible_lookup import (
     PassageData,
     PassageNotFoundError,
     PassageProviderError,
+    PassageTooLongError,
     PassageVerse,
 )
 from .docx_structure import (
@@ -38,6 +39,7 @@ __all__ = [
     "PassageImageService",
     "PassageNotFoundError",
     "PassageProviderError",
+    "PassageTooLongError",
     "PassageVerse",
     "StudyPlanProviderError",
     "StudyPlanService",

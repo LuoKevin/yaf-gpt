@@ -1,46 +1,34 @@
+import { useState, type CSSProperties } from "react";
+
 import type { PersonaChatMessage } from "../types";
 
 type DiscussionWorkspaceProps = {
-  personaModel: string | null;
   personaError: string;
   personaMessages: PersonaChatMessage[];
-  personaInput: string;
-  enableVoiceReply: boolean;
   isSendingPersona: boolean;
-  isRecordingPersona: boolean;
   isTranscribingPersona: boolean;
   isRealtimeVoiceConnecting: boolean;
   isRealtimeVoiceActive: boolean;
+  realtimeVoiceLevel: number;
   realtimeVoiceStatus: string;
-  onPersonaInputChange: (value: string) => void;
-  onPersonaSend: () => void | Promise<void>;
-  onPersonaVoiceToggle: () => void;
   onRealtimeVoiceToggle: () => void | Promise<void>;
-  onPersonaReset: () => void;
-  onEnableVoiceReplyChange: (value: boolean) => void;
 };
 
 export function DiscussionWorkspace({
-  personaModel,
   personaError,
   personaMessages,
-  personaInput,
-  enableVoiceReply,
   isSendingPersona,
-  isRecordingPersona,
   isTranscribingPersona,
   isRealtimeVoiceConnecting,
   isRealtimeVoiceActive,
+  realtimeVoiceLevel,
   realtimeVoiceStatus,
-  onPersonaInputChange,
-  onPersonaSend,
-  onPersonaVoiceToggle,
-  onRealtimeVoiceToggle,
-  onPersonaReset,
-  onEnableVoiceReplyChange
+  onRealtimeVoiceToggle
 }: DiscussionWorkspaceProps) {
-  const isBusy =
-    isSendingPersona || isRecordingPersona || isTranscribingPersona || isRealtimeVoiceConnecting;
+  const [isTranscriptOpen, setIsTranscriptOpen] = useState(false);
+  const voiceOrbitStyle = {
+    "--voice-level": String(Math.max(0, Math.min(realtimeVoiceLevel, 1)))
+  } as CSSProperties;
 
   return (
     <section className="discussion-prototype">
@@ -48,7 +36,7 @@ export function DiscussionWorkspace({
         <p className="workspace-kicker">Discussion</p>
         <h1>Live discussion</h1>
         <p className="workspace-copy">
-          Keep the mentor conversation available in both text and voice, with the live session treated as the visual focal point.
+          Keep this workspace voice-first, with isolated recording, live voice, and transcript state.
         </p>
       </div>
 
@@ -58,19 +46,23 @@ export function DiscussionWorkspace({
             <p className="section-label">Voice session</p>
             <h2>{isRealtimeVoiceActive ? "Voice session active" : "Mentor chat"}</h2>
             <p className="muted-text">
-              Use live voice for a more conversational exchange, or fall back to typed and recorded input when you need more control.
+              Record a prompt or start a live session. This workspace no longer shares chat state with the text workspace.
             </p>
           </div>
           <div className="discussion-status-cluster">
-            {personaModel ? <span className="surface-pill">{personaModel}</span> : null}
-            {realtimeVoiceStatus ? <span className="surface-pill">{realtimeVoiceStatus}</span> : null}
+            {realtimeVoiceStatus ? (
+              <span className="surface-pill loading-pill">
+                {isRealtimeVoiceConnecting ? <span className="loading-spinner" aria-hidden="true" /> : null}
+                <span>{realtimeVoiceStatus}</span>
+              </span>
+            ) : null}
           </div>
         </div>
 
         {personaError ? <p className="error-banner">{personaError}</p> : null}
 
         <div className="voice-visualizer-shell">
-          <div className={`voice-orbit ${isRealtimeVoiceActive ? "active" : ""}`}>
+          <div className={`voice-orbit ${isRealtimeVoiceActive ? "active" : ""}`} style={voiceOrbitStyle}>
             <div className="voice-orbit-inner">
               <div className="voice-bars">
                 <span />
@@ -87,19 +79,15 @@ export function DiscussionWorkspace({
         <div className="discussion-controls">
           <button
             type="button"
-            className="secondary-button round-button"
-            onClick={onPersonaVoiceToggle}
-            disabled={isSendingPersona || isTranscribingPersona || isRealtimeVoiceActive || isRealtimeVoiceConnecting}
-          >
-            <span className="material-symbols-outlined">{isRecordingPersona ? "stop" : "mic"}</span>
-          </button>
-          <button
-            type="button"
             className="danger-button call-button"
             onClick={onRealtimeVoiceToggle}
-            disabled={isSendingPersona || isRecordingPersona || isTranscribingPersona}
+            disabled={isSendingPersona || isTranscribingPersona}
           >
-            <span className="material-symbols-outlined">{isRealtimeVoiceActive ? "call_end" : "wifi_calling_3"}</span>
+            {isRealtimeVoiceConnecting ? (
+              <span className="loading-spinner" aria-hidden="true" />
+            ) : (
+              <span className="material-symbols-outlined">{isRealtimeVoiceActive ? "call_end" : "wifi_calling_3"}</span>
+            )}
             <span>
               {isRealtimeVoiceConnecting
                 ? "Connecting..."
@@ -108,63 +96,82 @@ export function DiscussionWorkspace({
                   : "Start live voice"}
             </span>
           </button>
-          <button type="button" className="secondary-button round-button" onClick={onPersonaReset}>
-            <span className="material-symbols-outlined">restart_alt</span>
-          </button>
+        </div>
+
+        <div className="discussion-voice-settings">
+          {isTranscribingPersona ? (
+            <div className="loading-inline">
+              <span className="loading-spinner" aria-hidden="true" />
+              <p className="muted-text">Transcribing audio...</p>
+            </div>
+          ) : null}
         </div>
       </article>
 
-      <div className="discussion-grid">
-        <article className="prototype-card">
+      {!isTranscriptOpen ? (
+        <div className="discussion-transcript-collapsed">
+          <button
+            type="button"
+            className="ghost-button transcript-icon-button"
+            onClick={() => setIsTranscriptOpen(true)}
+            data-tooltip="Show transcript"
+            aria-label="Show transcript"
+          >
+            <span className="material-symbols-outlined" aria-hidden="true">
+              notes
+            </span>
+          </button>
+        </div>
+      ) : (
+        <article className="prototype-card discussion-transcript-card">
           <div className="card-header">
             <div>
               <p className="section-label">Transcript</p>
               <h3>Conversation thread</h3>
             </div>
+            <button
+              type="button"
+              className="ghost-button transcript-toggle-button"
+              onClick={() => setIsTranscriptOpen(false)}
+            >
+              <span className="material-symbols-outlined" aria-hidden="true">
+                expand_less
+              </span>
+              <span>Hide transcript</span>
+            </button>
           </div>
           {personaMessages.length > 0 ? (
-            <div className="discussion-transcript-list">
-              {personaMessages.map((message, index) => (
-                <article key={`${message.role}-${index}`} className={`chat-message ${message.role}`}>
-                  <div className="chat-message-body">
-                    <p>{message.content}</p>
-                  </div>
-                </article>
-              ))}
-            </div>
+          <div className="discussion-transcript-list">
+            {personaMessages.map((message, index) => (
+              <article key={`${message.role}-${index}`} className={`discussion-transcript-item ${message.role}`}>
+                <div className="discussion-transcript-meta">
+                  <span className="discussion-transcript-role">
+                    {message.role === "user" ? "You" : "YAF-GPT"}
+                  </span>
+                </div>
+                <div className="discussion-transcript-body">
+                  <p>{message.content}</p>
+                </div>
+              </article>
+            ))}
+            {isTranscribingPersona || isSendingPersona || isRealtimeVoiceConnecting ? (
+              <div className="discussion-transcript-status">
+                <span className="loading-spinner" aria-hidden="true" />
+                <span>
+                  {isTranscribingPersona
+                    ? "Transcribing..."
+                    : isRealtimeVoiceConnecting
+                      ? "Connecting live voice..."
+                      : "Waiting for response..."}
+                </span>
+              </div>
+            ) : null}
+          </div>
           ) : (
-            <p className="empty-state">Start the discussion to see the transcript build in real time.</p>
+            <p className="empty-state">Record or start live voice to build the isolated discussion transcript.</p>
           )}
         </article>
-
-        <article className="prototype-card">
-          <div className="card-header">
-            <div>
-              <p className="section-label">Manual input</p>
-              <h3>Typed fallback</h3>
-            </div>
-          </div>
-          <label className="field">
-            <span>Message</span>
-            <textarea rows={4} value={personaInput} onChange={(event) => onPersonaInputChange(event.target.value)} placeholder="Ask a question" />
-          </label>
-          <div className="mini-action-row">
-            <button type="button" className="primary-button" onClick={onPersonaSend} disabled={isBusy || isRealtimeVoiceActive}>
-              {isSendingPersona ? "Sending..." : "Send"}
-            </button>
-            <label className="toggle-row">
-              <span>Voice reply</span>
-              <input
-                type="checkbox"
-                checked={enableVoiceReply}
-                onChange={(event) => onEnableVoiceReplyChange(event.target.checked)}
-              />
-            </label>
-          </div>
-          {isRecordingPersona ? <p className="muted-text">Recording...</p> : null}
-          {isTranscribingPersona ? <p className="muted-text">Transcribing audio...</p> : null}
-        </article>
-      </div>
+      )}
     </section>
   );
 }
