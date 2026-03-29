@@ -79,6 +79,7 @@ class OpenAIVoiceGenerationProvider:
             self._client = client
 
         self.model_name = model or os.getenv("VOICE_GENERATION_MODEL") or DEFAULT_VOICE_GENERATION_MODEL
+        self.default_response_format = "mp3"
 
     def generate_audio(
         self,
@@ -112,6 +113,7 @@ class SelfHostedVoiceGenerationProvider:
         _load_backend_env()
         self._base_url = (base_url or os.getenv("SELF_HOSTED_VOICE_GENERATION_URL") or "").strip()
         self.model_name = model or os.getenv("VOICE_GENERATION_MODEL") or "self-hosted-voice"
+        self.default_response_format = "wav"
         if not self._base_url:
             raise RuntimeError("SELF_HOSTED_VOICE_GENERATION_URL is not set")
 
@@ -128,6 +130,9 @@ class SelfHostedVoiceGenerationProvider:
 
 
 class ModalVoiceGenerationProvider:
+    # Adjust this directly in code when tuning Chatterbox sampling.
+    _TEMPERATURE = 1
+
     def __init__(
         self,
         *,
@@ -147,6 +152,7 @@ class ModalVoiceGenerationProvider:
         ).strip()
         self._bearer_token = (bearer_token or os.getenv("MODAL_VOICE_GENERATION_TOKEN") or "").strip()
         self._request_opener = request_opener or urllib_request.urlopen
+        self.default_response_format = "wav"
         if not self._base_url:
             raise RuntimeError("MODAL_VOICE_GENERATION_URL is not set")
 
@@ -165,6 +171,7 @@ class ModalVoiceGenerationProvider:
         payload = {
             "input_text": input_text,
             "voice_prompt_name": self._voice_prompt_name,
+            "temperature": self._TEMPERATURE,
             # Keep these in the payload for future provider-side expansion.
             "voice": voice,
             "instructions": instructions,

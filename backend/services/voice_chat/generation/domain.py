@@ -34,7 +34,7 @@ class GenerateVoiceCommand:
     input_text: str
     voice: str = "alloy"
     instructions: Optional[str] = None
-    response_format: str = "mp3"
+    response_format: Optional[str] = None
     speed: float = 1.0
 
 
@@ -66,6 +66,7 @@ def resolve_generate_voice_command(
     command: GenerateVoiceCommand,
     *,
     model_name: str,
+    default_response_format: str = "mp3",
 ) -> ResolvedGenerateVoiceCommand:
     input_text = normalize_text(command.input_text)
     if not input_text:
@@ -79,7 +80,7 @@ def resolve_generate_voice_command(
     if voice not in SUPPORTED_VOICE_OPTIONS:
         raise ValueError(f"Unsupported voice '{voice}'.")
 
-    response_format = normalize_text(command.response_format).lower() or "mp3"
+    response_format = normalize_text(command.response_format).lower() or default_response_format
     if response_format not in SUPPORTED_RESPONSE_FORMATS:
         raise ValueError(f"Unsupported response format '{response_format}'.")
 

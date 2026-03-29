@@ -48,7 +48,7 @@ class BackendTTSVoiceAudioRenderer:
         input_text: str,
         voice: str = "alloy",
         instructions: str | None = None,
-        response_format: str = "mp3",
+        response_format: str | None = None,
         speed: float = 1.0,
     ) -> VoiceAudioRenderResult:
         result: VoiceGenerationResult = self._voice_generation_service.generate_audio(
@@ -78,7 +78,7 @@ class NativeRealtimeVoiceAudioRenderer:
         input_text: str,
         voice: str = "alloy",
         instructions: str | None = None,
-        response_format: str = "mp3",
+        response_format: str | None = None,
         speed: float = 1.0,
     ) -> VoiceAudioRenderResult:
         return VoiceAudioRenderResult(
@@ -101,7 +101,7 @@ class DisabledVoiceAudioRenderer:
         input_text: str,
         voice: str = "alloy",
         instructions: str | None = None,
-        response_format: str = "mp3",
+        response_format: str | None = None,
         speed: float = 1.0,
     ) -> VoiceAudioRenderResult:
         return VoiceAudioRenderResult(
@@ -153,7 +153,7 @@ class VoiceAudioRenderingService:
         input_text: str,
         voice: str = "alloy",
         instructions: Optional[str] = None,
-        response_format: str = "mp3",
+        response_format: str | None = None,
         speed: float = 1.0,
     ) -> VoiceAudioRenderResult:
         return self._renderer.render_audio(

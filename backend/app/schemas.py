@@ -195,6 +195,39 @@ class VoiceTranscriptionResponse(BaseModel):
     model: str
 
 
+class VoiceChatTurnRequest(BaseModel):
+    audio_base64: str = Field(
+        ...,
+        min_length=1,
+        description="Base64-encoded recorded audio bytes, optionally as a data URL.",
+    )
+    mime_type: Optional[str] = Field(
+        default=None,
+        description="Optional MIME type for the uploaded audio.",
+    )
+    file_name: Optional[str] = Field(
+        default=None,
+        description="Optional file name hint for transcription provider compatibility.",
+    )
+    reference_context: Optional[str] = Field(
+        default=None,
+        description="Optional Bible reference used to ground the voice reply.",
+    )
+    translation: TranslationCode = Field(default="WEB")
+
+
+class VoiceChatTurnResponse(BaseModel):
+    transcript: str
+    transcript_model: str
+    reply: str
+    reply_model: str
+    audio_base64: Optional[str] = None
+    audio_mime_type: Optional[str] = None
+    audio_model: Optional[str] = None
+    audio_voice: Optional[str] = None
+    audio_response_format: Optional[str] = None
+
+
 class VoiceGenerationRequest(BaseModel):
     input: str = Field(
         ...,
@@ -207,7 +240,10 @@ class VoiceGenerationRequest(BaseModel):
         default=None,
         description="Optional speaking guidance such as tone or delivery style.",
     )
-    response_format: VoiceGenerationFormat = Field(default="mp3")
+    response_format: Optional[VoiceGenerationFormat] = Field(
+        default=None,
+        description="Optional output format. If omitted, the active provider chooses its default.",
+    )
     speed: float = Field(
         default=1.0,
         ge=0.25,

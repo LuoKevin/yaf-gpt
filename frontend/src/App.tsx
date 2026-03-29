@@ -7,9 +7,7 @@ import { TextChatWorkspace } from "./components/TextChatWorkspace";
 import { ViewSwitcher } from "./components/ViewSwitcher";
 import {
   blobToDataUrl,
-  normalizeReference,
   requestJson,
-  requestRealtimeAnswer,
   requestSse
 } from "./lib/api";
 import type {
@@ -18,12 +16,10 @@ import type {
   MusicJobResponse,
   PassageImageResponse,
   PersonaChatMessage,
-  RealtimeVoice,
   SseEventPayload,
   TranslationCode,
   ViewMode,
-  VoiceRealtimeSessionResponse,
-  VoiceTranscriptionResponse,
+  VoiceChatTurnResponse,
   StudyPlanResponse
 } from "./types";
 
@@ -55,32 +51,18 @@ export default function App() {
   const [isSendingChat, setIsSendingChat] = useState(false);
 
   const [discussionMessages, setDiscussionMessages] = useState<PersonaChatMessage[]>([]);
-  const [discussionModel, setDiscussionModel] = useState<string | null>(null);
   const [discussionError, setDiscussionError] = useState("");
-  const [isSendingDiscussion, setIsSendingDiscussion] = useState(false);
   const [isRecordingDiscussion, setIsRecordingDiscussion] = useState(false);
-  const [isTranscribingDiscussion, setIsTranscribingDiscussion] = useState(false);
-  const [isRealtimeVoiceConnecting, setIsRealtimeVoiceConnecting] = useState(false);
-  const [isRealtimeVoiceActive, setIsRealtimeVoiceActive] = useState(false);
-  const [realtimeVoiceStatus, setRealtimeVoiceStatus] = useState("");
-  const [realtimeVoiceLevel, setRealtimeVoiceLevel] = useState(0);
+  const [isProcessingDiscussion, setIsProcessingDiscussion] = useState(false);
+  const [isPlayingDiscussionAudio, setIsPlayingDiscussionAudio] = useState(false);
+  const [discussionVoiceStatus, setDiscussionVoiceStatus] = useState("");
+  const [discussionVoiceVisualLevel, setDiscussionVoiceVisualLevel] = useState(0);
 
   const discussionRecorderRef = useRef<MediaRecorder | null>(null);
   const discussionStreamRef = useRef<MediaStream | null>(null);
   const discussionChunksRef = useRef<Blob[]>([]);
-  const realtimePeerConnectionRef = useRef<RTCPeerConnection | null>(null);
-  const realtimeDataChannelRef = useRef<RTCDataChannel | null>(null);
-  const realtimeLocalStreamRef = useRef<MediaStream | null>(null);
-  const realtimeAudioRef = useRef<HTMLAudioElement | null>(null);
-  const realtimeHasOpenAssistantMessageRef = useRef(false);
-  const realtimeUserTranscriptItemIdsRef = useRef<Set<string>>(new Set());
-  const realtimeFinalizedAssistantItemIdsRef = useRef<Set<string>>(new Set());
-  const realtimeAudioContextRef = useRef<AudioContext | null>(null);
-  const realtimeAnalyserRef = useRef<AnalyserNode | null>(null);
-  const realtimeAudioSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
-  const realtimeVoiceLevelFrameRef = useRef<number | null>(null);
-  const realtimePublishedVoiceLevelRef = useRef(0);
-  const realtimeSmoothedVoiceLevelRef = useRef(0);
+  const discussionAudioRef = useRef<HTMLAudioElement | null>(null);
+  const discussionAudioUrlRef = useRef<string | null>(null);
 
   const [musicPrompt, setMusicPrompt] = useState("");
   const [musicStyle, setMusicStyle] = useState("modern worship, acoustic");
@@ -135,253 +117,38 @@ export default function App() {
     discussionChunksRef.current = [];
   }
 
-  function getRealtimeAudioElement() {
-    if (!realtimeAudioRef.current) {
+  function getDiscussionAudioElement() {
+    if (!discussionAudioRef.current) {
       const audio = new Audio();
       audio.autoplay = true;
-      realtimeAudioRef.current = audio;
-    }
-    return realtimeAudioRef.current;
-  }
-
-  function stopRealtimeVoiceLevelMonitoring() {
-    if (realtimeVoiceLevelFrameRef.current !== null) {
-      window.cancelAnimationFrame(realtimeVoiceLevelFrameRef.current);
-      realtimeVoiceLevelFrameRef.current = null;
-    }
-
-    try {
-      realtimeAudioSourceRef.current?.disconnect();
-    } catch {
-      // Ignore cleanup failures from disconnected nodes.
-    }
-
-    try {
-      realtimeAnalyserRef.current?.disconnect();
-    } catch {
-      // Ignore cleanup failures from disconnected nodes.
-    }
-
-    const audioContext = realtimeAudioContextRef.current;
-    if (audioContext) {
-      void audioContext.close().catch(() => {
-        // Ignore close failures during teardown.
-      });
-    }
-
-    realtimeAudioContextRef.current = null;
-    realtimeAnalyserRef.current = null;
-    realtimeAudioSourceRef.current = null;
-    realtimePublishedVoiceLevelRef.current = 0;
-    realtimeSmoothedVoiceLevelRef.current = 0;
-    setRealtimeVoiceLevel(0);
-  }
-
-  function startRealtimeVoiceLevelMonitoring(stream: MediaStream) {
-    stopRealtimeVoiceLevelMonitoring();
-
-    if (typeof window === "undefined" || typeof window.AudioContext === "undefined") {
-      return;
-    }
-
-    try {
-      const audioContext = new window.AudioContext();
-      const analyser = audioContext.createAnalyser();
-      analyser.fftSize = 256;
-      analyser.smoothingTimeConstant = 0.82;
-
-      const source = audioContext.createMediaStreamSource(stream);
-      source.connect(analyser);
-
-      realtimeAudioContextRef.current = audioContext;
-      realtimeAnalyserRef.current = analyser;
-      realtimeAudioSourceRef.current = source;
-
-      void audioContext.resume().catch(() => {
-        // Ignore resume failures and fall back to the base pulse.
-      });
-
-      const data = new Uint8Array(analyser.fftSize);
-      let lastPublishedAt = 0;
-
-      const tick = (time: number) => {
-        analyser.getByteTimeDomainData(data);
-
-        let sumSquares = 0;
-        for (const sample of data) {
-          const centered = (sample - 128) / 128;
-          sumSquares += centered * centered;
-        }
-
-        const rms = Math.sqrt(sumSquares / data.length);
-        const normalizedLevel = Math.min(1, Math.max(0, (rms - 0.015) * 18));
-        const smoothedLevel = realtimeSmoothedVoiceLevelRef.current * 0.82 + normalizedLevel * 0.18;
-        realtimeSmoothedVoiceLevelRef.current = smoothedLevel;
-
-        if (time - lastPublishedAt >= 50 || Math.abs(smoothedLevel - realtimePublishedVoiceLevelRef.current) >= 0.035) {
-          const nextLevel = Number(smoothedLevel.toFixed(3));
-          realtimePublishedVoiceLevelRef.current = nextLevel;
-          setRealtimeVoiceLevel(nextLevel);
-          lastPublishedAt = time;
-        }
-
-        realtimeVoiceLevelFrameRef.current = window.requestAnimationFrame(tick);
+      audio.onplay = () => {
+        setIsPlayingDiscussionAudio(true);
+        setDiscussionVoiceStatus("Playing spoken reply...");
+        setDiscussionVoiceVisualLevel(0.9);
       };
-
-      realtimeVoiceLevelFrameRef.current = window.requestAnimationFrame(tick);
-    } catch {
-      stopRealtimeVoiceLevelMonitoring();
+      audio.onended = () => {
+        setIsPlayingDiscussionAudio(false);
+        setDiscussionVoiceStatus("Voice reply ready.");
+        setDiscussionVoiceVisualLevel(0);
+      };
+      audio.onpause = () => {
+        setIsPlayingDiscussionAudio(false);
+        setDiscussionVoiceVisualLevel(0);
+      };
+      discussionAudioRef.current = audio;
     }
+    return discussionAudioRef.current;
   }
 
-  function stopRealtimeVoiceSession() {
-    realtimeDataChannelRef.current?.close();
-    realtimeDataChannelRef.current = null;
-
-    realtimePeerConnectionRef.current?.close();
-    realtimePeerConnectionRef.current = null;
-
-    if (realtimeLocalStreamRef.current) {
-      realtimeLocalStreamRef.current.getTracks().forEach((track) => track.stop());
-    }
-    realtimeLocalStreamRef.current = null;
-
-    const audio = realtimeAudioRef.current;
+  function stopDiscussionAudioPlayback() {
+    const audio = discussionAudioRef.current;
     if (audio) {
       audio.pause();
-      audio.srcObject = null;
+      audio.currentTime = 0;
     }
-
-    stopRealtimeVoiceLevelMonitoring();
-    realtimeHasOpenAssistantMessageRef.current = false;
-    realtimeUserTranscriptItemIdsRef.current.clear();
-    realtimeFinalizedAssistantItemIdsRef.current.clear();
-    setIsRealtimeVoiceConnecting(false);
-    setIsRealtimeVoiceActive(false);
-    setRealtimeVoiceStatus("");
-  }
-
-  function appendRealtimeUserTranscript(itemId: string, transcript: string) {
-    const cleaned = transcript.trim();
-    if (!cleaned || realtimeUserTranscriptItemIdsRef.current.has(itemId)) {
-      return;
-    }
-
-    realtimeUserTranscriptItemIdsRef.current.add(itemId);
-    setDiscussionMessages((current) => [...current, { role: "user", content: cleaned }]);
-  }
-
-  function appendRealtimeAssistantDelta(itemId: string, delta: string) {
-    if (!delta || realtimeFinalizedAssistantItemIdsRef.current.has(itemId)) {
-      return;
-    }
-
-    setDiscussionMessages((current) => {
-      if (current.length === 0) {
-        realtimeHasOpenAssistantMessageRef.current = true;
-        return [{ role: "assistant", content: delta }];
-      }
-
-      const next = [...current];
-      const last = next[next.length - 1];
-      if (!realtimeHasOpenAssistantMessageRef.current || last.role !== "assistant") {
-        realtimeHasOpenAssistantMessageRef.current = true;
-        next.push({ role: "assistant", content: delta });
-        return next;
-      }
-
-      next[next.length - 1] = { role: "assistant", content: `${last.content}${delta}` };
-      return next;
-    });
-  }
-
-  function finalizeRealtimeAssistantTranscript(itemId: string, transcript: string) {
-    const cleaned = transcript.trim();
-    if (!cleaned) {
-      realtimeHasOpenAssistantMessageRef.current = false;
-      return;
-    }
-    if (realtimeFinalizedAssistantItemIdsRef.current.has(itemId)) {
-      return;
-    }
-
-    setDiscussionMessages((current) => {
-      if (current.length === 0) {
-        return [{ role: "assistant", content: cleaned }];
-      }
-
-      const next = [...current];
-      const last = next[next.length - 1];
-      if (realtimeHasOpenAssistantMessageRef.current && last.role === "assistant") {
-        next[next.length - 1] = { role: "assistant", content: cleaned };
-        return next;
-      }
-      if (last.role === "assistant" && last.content.trim() === cleaned) {
-        return current;
-      }
-
-      next.push({ role: "assistant", content: cleaned });
-      return next;
-    });
-
-    realtimeFinalizedAssistantItemIdsRef.current.add(itemId);
-    realtimeHasOpenAssistantMessageRef.current = false;
-  }
-
-  function handleRealtimeServerEvent(event: unknown, model: string, voice: RealtimeVoice) {
-    if (typeof event !== "object" || event === null || !("type" in event)) {
-      return;
-    }
-
-    const eventType = typeof event.type === "string" ? event.type : "";
-    if (!eventType) {
-      return;
-    }
-
-    if (eventType === "session.created" || eventType === "session.updated") {
-      setDiscussionModel(model);
-      setRealtimeVoiceStatus("Live voice connected.");
-      return;
-    }
-
-    if (eventType === "conversation.item.input_audio_transcription.completed") {
-      const itemId = "item_id" in event && typeof event.item_id === "string" ? event.item_id : "";
-      const transcript = "transcript" in event && typeof event.transcript === "string" ? event.transcript : "";
-      if (itemId && transcript) {
-        appendRealtimeUserTranscript(itemId, transcript);
-      }
-      return;
-    }
-
-    if (eventType === "response.output_audio_transcript.delta") {
-      const itemId = "item_id" in event && typeof event.item_id === "string" ? event.item_id : "";
-      const delta = "delta" in event && typeof event.delta === "string" ? event.delta : "";
-      if (itemId && delta) {
-        appendRealtimeAssistantDelta(itemId, delta);
-      }
-      return;
-    }
-
-    if (eventType === "response.output_audio_transcript.done") {
-      const itemId = "item_id" in event && typeof event.item_id === "string" ? event.item_id : "";
-      const transcript = "transcript" in event && typeof event.transcript === "string" ? event.transcript : "";
-      if (itemId && transcript) {
-        finalizeRealtimeAssistantTranscript(itemId, transcript);
-      }
-      return;
-    }
-
-    if (eventType === "error") {
-      const detail =
-        "error" in event &&
-        typeof event.error === "object" &&
-        event.error !== null &&
-        "message" in event.error &&
-        typeof event.error.message === "string"
-          ? event.error.message
-          : "Realtime voice session failed.";
-      setDiscussionError(detail);
-      stopRealtimeVoiceSession();
+    if (discussionAudioUrlRef.current) {
+      URL.revokeObjectURL(discussionAudioUrlRef.current);
+      discussionAudioUrlRef.current = null;
     }
   }
 
@@ -390,10 +157,7 @@ export default function App() {
       if (discussionRecorderRef.current && discussionRecorderRef.current.state !== "inactive") {
         discussionRecorderRef.current.stop();
       }
-      stopRealtimeVoiceSession();
-      if (typeof window !== "undefined" && "speechSynthesis" in window) {
-        window.speechSynthesis.cancel();
-      }
+      stopDiscussionAudioPlayback();
       releaseDiscussionMediaResources();
     };
   }, []);
@@ -629,24 +393,32 @@ export default function App() {
     });
   }
 
-  async function sendDiscussionMessage(rawMessage: string) {
-    await streamWorkspaceMessage({
-      rawMessage,
-      currentMessages: discussionMessages,
-      setMessages: setDiscussionMessages,
-      setError: setDiscussionError,
-      setIsSending: setIsSendingDiscussion,
-      setModel: setDiscussionModel
-    });
+  async function playDiscussionAudio(audioBase64: string, mimeType: string | null) {
+    stopDiscussionAudioPlayback();
+
+    const byteCharacters = window.atob(audioBase64);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let index = 0; index < byteCharacters.length; index += 1) {
+      byteNumbers[index] = byteCharacters.charCodeAt(index);
+    }
+    const audioBlob = new Blob([new Uint8Array(byteNumbers)], { type: mimeType || "audio/wav" });
+    const audioUrl = URL.createObjectURL(audioBlob);
+    discussionAudioUrlRef.current = audioUrl;
+
+    const audio = getDiscussionAudioElement();
+    audio.src = audioUrl;
+    await audio.play();
   }
 
-  async function transcribeDiscussionRecording(blob: Blob) {
-    setIsTranscribingDiscussion(true);
+  async function createDiscussionVoiceTurn(blob: Blob) {
+    setIsProcessingDiscussion(true);
     setDiscussionError("");
+    setDiscussionVoiceStatus("Transcribing your message...");
+    setDiscussionVoiceVisualLevel(0.65);
 
     try {
       const audioBase64 = await blobToDataUrl(blob);
-      const response = await requestJson<VoiceTranscriptionResponse>("/api/voice/transcribe", {
+      const response = await requestJson<VoiceChatTurnResponse>("/api/voice/chat-turn", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
@@ -658,16 +430,29 @@ export default function App() {
         })
       });
 
-      await sendDiscussionMessage(response.transcript);
+      setDiscussionMessages((current) => [
+        ...current,
+        { role: "user", content: response.transcript },
+        { role: "assistant", content: response.reply }
+      ]);
+      setDiscussionVoiceStatus(response.audio_base64 ? "Rendering spoken reply..." : "Voice reply unavailable.");
+
+      if (response.audio_base64) {
+        await playDiscussionAudio(response.audio_base64, response.audio_mime_type);
+      } else {
+        setDiscussionVoiceVisualLevel(0);
+      }
     } catch (error) {
+      setDiscussionVoiceStatus("");
+      setDiscussionVoiceVisualLevel(0);
       setDiscussionError(error instanceof Error ? error.message : "Unable to process recorded audio.");
     } finally {
-      setIsTranscribingDiscussion(false);
+      setIsProcessingDiscussion(false);
     }
   }
 
   async function startDiscussionRecording() {
-    if (isRecordingDiscussion || isSendingDiscussion || isTranscribingDiscussion) {
+    if (isRecordingDiscussion || isProcessingDiscussion) {
       return;
     }
     if (typeof window === "undefined" || typeof MediaRecorder === "undefined") {
@@ -680,6 +465,7 @@ export default function App() {
     }
 
     try {
+      stopDiscussionAudioPlayback();
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const preferredMimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
         ? "audio/webm;codecs=opus"
@@ -700,6 +486,8 @@ export default function App() {
 
       recorder.onerror = () => {
         setDiscussionError("Recording failed.");
+        setDiscussionVoiceStatus("");
+        setDiscussionVoiceVisualLevel(0);
         setIsRecordingDiscussion(false);
         releaseDiscussionMediaResources();
       };
@@ -708,6 +496,7 @@ export default function App() {
         const chunks = [...discussionChunksRef.current];
         const blobType = recorder.mimeType || "audio/webm";
         setIsRecordingDiscussion(false);
+        setDiscussionVoiceVisualLevel(0);
         releaseDiscussionMediaResources();
 
         if (chunks.length === 0) {
@@ -716,14 +505,18 @@ export default function App() {
         }
 
         const recording = new Blob(chunks, { type: blobType });
-        void transcribeDiscussionRecording(recording);
+        void createDiscussionVoiceTurn(recording);
       };
 
       setDiscussionError("");
+      setDiscussionVoiceStatus("Listening...");
+      setDiscussionVoiceVisualLevel(0.95);
       recorder.start();
       setIsRecordingDiscussion(true);
     } catch (error) {
       setDiscussionError(error instanceof Error ? error.message : "Unable to access microphone.");
+      setDiscussionVoiceStatus("");
+      setDiscussionVoiceVisualLevel(0);
       setIsRecordingDiscussion(false);
       releaseDiscussionMediaResources();
     }
@@ -736,150 +529,13 @@ export default function App() {
     discussionRecorderRef.current.stop();
   }
 
-  async function startRealtimeVoiceSession() {
-    if (isRealtimeVoiceActive || isRealtimeVoiceConnecting || isSendingDiscussion || isRecordingDiscussion || isTranscribingDiscussion) {
-      return;
-    }
-    if (typeof window === "undefined" || typeof RTCPeerConnection === "undefined") {
-      setDiscussionError("Live voice requires WebRTC support in this browser.");
-      return;
-    }
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setDiscussionError("Microphone access is not available in this browser.");
+  async function handleDiscussionRecordToggle() {
+    if (isRecordingDiscussion) {
+      stopDiscussionRecording();
       return;
     }
 
-    setDiscussionError("");
-    setIsRealtimeVoiceConnecting(true);
-    setRealtimeVoiceStatus("Connecting live voice...");
-
-    try {
-      const session = await requestJson<VoiceRealtimeSessionResponse>("/api/voice/realtime/session", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          voice: "cedar"
-        })
-      });
-
-      const localStream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true
-        }
-      });
-
-      const peerConnection = new RTCPeerConnection();
-      const audio = getRealtimeAudioElement();
-
-      realtimeLocalStreamRef.current = localStream;
-      realtimePeerConnectionRef.current = peerConnection;
-
-      peerConnection.ontrack = (event) => {
-        const remoteStream = event.streams[0] ?? new MediaStream([event.track]);
-        audio.srcObject = remoteStream;
-        startRealtimeVoiceLevelMonitoring(remoteStream);
-        void audio.play().catch(() => {
-          setRealtimeVoiceStatus("Live voice connected. Tap the page if audio playback is blocked.");
-        });
-      };
-
-      peerConnection.onconnectionstatechange = () => {
-        const state = peerConnection.connectionState;
-        if (state === "connected") {
-          setIsRealtimeVoiceConnecting(false);
-          setIsRealtimeVoiceActive(true);
-          setDiscussionModel(session.model);
-          setRealtimeVoiceStatus("Live voice connected.");
-          return;
-        }
-
-        if (state === "failed" || state === "closed" || state === "disconnected") {
-          stopRealtimeVoiceSession();
-          if (state === "failed") {
-            setDiscussionError("Live voice connection dropped.");
-          }
-        }
-      };
-
-      const dataChannel = peerConnection.createDataChannel("oai-events");
-      realtimeDataChannelRef.current = dataChannel;
-      dataChannel.onopen = () => {
-        setRealtimeVoiceStatus("Live voice ready. Start speaking.");
-      };
-      dataChannel.onclose = () => {
-        if (realtimePeerConnectionRef.current) {
-          stopRealtimeVoiceSession();
-        }
-      };
-      dataChannel.onerror = () => {
-        setDiscussionError("Live voice event channel failed.");
-      };
-      dataChannel.onmessage = (messageEvent) => {
-        try {
-          const event = JSON.parse(messageEvent.data) as unknown;
-          handleRealtimeServerEvent(event, session.model, session.voice);
-        } catch {
-          // Ignore events we do not parse.
-        }
-      };
-
-      localStream.getTracks().forEach((track) => {
-        peerConnection.addTrack(track, localStream);
-      });
-
-      const offer = await peerConnection.createOffer();
-      await peerConnection.setLocalDescription(offer);
-
-      if (!offer.sdp) {
-        throw new Error("Unable to create a WebRTC offer.");
-      }
-
-      const answerSdp = await requestRealtimeAnswer(
-        session.webrtc_url,
-        session.client_secret,
-        offer.sdp
-      );
-
-      await peerConnection.setRemoteDescription({
-        type: "answer",
-        sdp: answerSdp
-      });
-    } catch (error) {
-      stopRealtimeVoiceSession();
-      setDiscussionError(error instanceof Error ? error.message : "Unable to start live voice.");
-    } finally {
-      setIsRealtimeVoiceConnecting(false);
-    }
-  }
-
-  async function handleRealtimeVoiceToggle() {
-    if (isRealtimeVoiceActive || isRealtimeVoiceConnecting) {
-      stopRealtimeVoiceSession();
-      return;
-    }
-
-    await startRealtimeVoiceSession();
-  }
-
-  function handleDiscussionReset() {
-    if (discussionRecorderRef.current && discussionRecorderRef.current.state !== "inactive") {
-      discussionRecorderRef.current.stop();
-    }
-    stopRealtimeVoiceSession();
-    if (typeof window !== "undefined" && "speechSynthesis" in window) {
-      window.speechSynthesis.cancel();
-    }
-    releaseDiscussionMediaResources();
-    setDiscussionMessages([]);
-    setDiscussionModel(null);
-    setDiscussionError("");
-    setIsSendingDiscussion(false);
-    setIsRecordingDiscussion(false);
-    setIsTranscribingDiscussion(false);
+    await startDiscussionRecording();
   }
 
   function handleTextChatReset() {
@@ -1006,13 +662,12 @@ export default function App() {
             <DiscussionWorkspace
               personaError={discussionError}
               personaMessages={discussionMessages}
-              isSendingPersona={isSendingDiscussion}
-              isTranscribingPersona={isTranscribingDiscussion}
-              isRealtimeVoiceConnecting={isRealtimeVoiceConnecting}
-              isRealtimeVoiceActive={isRealtimeVoiceActive}
-              realtimeVoiceLevel={realtimeVoiceLevel}
-              realtimeVoiceStatus={realtimeVoiceStatus}
-              onRealtimeVoiceToggle={handleRealtimeVoiceToggle}
+              isProcessingPersona={isProcessingDiscussion}
+              isRecordingPersona={isRecordingDiscussion}
+              isPlayingPersonaAudio={isPlayingDiscussionAudio}
+              voiceVisualLevel={discussionVoiceVisualLevel}
+              voiceStatus={discussionVoiceStatus}
+              onRecordToggle={handleDiscussionRecordToggle}
             />
           ) : null}
 

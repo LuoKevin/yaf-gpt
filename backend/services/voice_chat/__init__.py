@@ -5,6 +5,7 @@ __all__ = [
     "PersonaChatProviderError",
     "PersonaChatService",
     "PersonaChatValidationError",
+    "VoiceChatConversationService",
     "VoiceAudioRenderResult",
     "VoiceAudioRenderingService",
     "VoiceChatService",
@@ -24,6 +25,11 @@ def __getattr__(name: str):
             "PersonaChatValidationError": PersonaChatValidationError,
         }
         return exports[name]
+
+    if name == "VoiceChatConversationService":
+        from .conversation import VoiceChatConversationService
+
+        return VoiceChatConversationService
 
     if name == "VoiceChatService":
         from .realtime import VoiceChatService

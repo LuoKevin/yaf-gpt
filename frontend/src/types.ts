@@ -3,18 +3,6 @@ export type ImageStyle = "modern_editorial_illustration";
 export type PersonaChatRole = "user" | "assistant";
 export type MusicJobStatus = "queued" | "in_progress" | "completed" | "failed";
 export type ViewMode = "study" | "chat" | "music" | "discussion";
-export type RealtimeVoice =
-  | "alloy"
-  | "ash"
-  | "ballad"
-  | "cedar"
-  | "coral"
-  | "echo"
-  | "marin"
-  | "sage"
-  | "shimmer"
-  | "verse";
-
 export type BibleVerse = {
   book: string;
   chapter: number;
@@ -77,12 +65,16 @@ export type VoiceTranscriptionResponse = {
   model: string;
 };
 
-export type VoiceRealtimeSessionResponse = {
-  client_secret: string;
-  expires_at: number;
-  model: string;
-  voice: RealtimeVoice;
-  webrtc_url: string;
+export type VoiceChatTurnResponse = {
+  transcript: string;
+  transcript_model: string;
+  reply: string;
+  reply_model: string;
+  audio_base64: string | null;
+  audio_mime_type: string | null;
+  audio_model: string | null;
+  audio_voice: string | null;
+  audio_response_format: string | null;
 };
 
 export type MusicGenerateResponse = {

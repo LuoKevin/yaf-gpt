@@ -20,7 +20,7 @@ class _VoiceGenerationServiceStub:
         input_text: str,
         voice: str = "alloy",
         instructions: str | None = None,
-        response_format: str = "mp3",
+        response_format: str | None = None,
         speed: float = 1.0,
     ) -> VoiceGenerationResult:
         self.last_kwargs = {
@@ -32,10 +32,10 @@ class _VoiceGenerationServiceStub:
         }
         return VoiceGenerationResult(
             audio_bytes=b"audio-payload",
-            mime_type="audio/mpeg",
+            mime_type="audio/mpeg" if response_format != "wav" else "audio/wav",
             model="gpt-4o-mini-tts",
             voice=voice,
-            response_format=response_format,
+            response_format=response_format or "mp3",
         )
 
 

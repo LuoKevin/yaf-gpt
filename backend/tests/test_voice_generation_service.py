@@ -116,22 +116,38 @@ class VoiceGenerationServiceTests(unittest.TestCase):
         result = service.generate_audio(
             input_text=" Read this aloud. ",
             voice="alloy",
-            response_format="wav",
         )
 
         self.assertEqual(result.audio_bytes, b"modal-audio")
         self.assertEqual(result.mime_type, "audio/wav")
         self.assertEqual(result.model, "chatterbox-turbo-modal")
+        self.assertEqual(result.response_format, "wav")
         self.assertEqual(captured["url"], "https://modal.example/generate")
         self.assertEqual(captured["timeout"], 60)
         self.assertEqual(captured["body"], {
             "input_text": "Read this aloud.",
             "voice_prompt_name": "Lucy.wav",
+            "temperature": 0.8,
             "voice": "alloy",
             "instructions": None,
             "speed": 1.0,
         })
         self.assertIn(("Authorization", "Bearer secret-token"), captured["headers"].items())
+
+    def test_modal_provider_uses_wav_as_default_format(self) -> None:
+        provider = ModalVoiceGenerationProvider(
+            base_url="https://modal.example/generate",
+            request_opener=lambda *args, **kwargs: _FakeUrlopenResponse(b"modal-audio"),
+        )
+        service = VoiceGenerationService(provider=provider)
+
+        result = service.generate_audio(
+            input_text="Read this aloud.",
+            voice="alloy",
+        )
+
+        self.assertEqual(result.response_format, "wav")
+        self.assertEqual(result.mime_type, "audio/wav")
 
     def test_modal_provider_rejects_non_wav_output(self) -> None:
         provider = ModalVoiceGenerationProvider(

@@ -6,9 +6,16 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from ..rate_limit import limit_requests
 from ...services.study_plan.bible_lookup import InvalidReferenceError, PassageNotFoundError
-from ...services.voice_chat import VoiceChatService, VoiceGenerationService, VoiceTranscriptionService
+from ...services.voice_chat import (
+    VoiceChatConversationService,
+    VoiceChatService,
+    VoiceGenerationService,
+    VoiceTranscriptionService,
+)
 from ..schemas import (
     APIErrorResponse,
+    VoiceChatTurnRequest,
+    VoiceChatTurnResponse,
     VoiceGenerationRequest,
     VoiceGenerationResponse,
     VoiceRealtimeSessionRequest,
@@ -30,6 +37,10 @@ def get_voice_generation_service() -> VoiceGenerationService:
 
 def get_voice_realtime_session_service() -> VoiceChatService:
     return VoiceChatService()
+
+
+def get_voice_chat_conversation_service() -> VoiceChatConversationService:
+    return VoiceChatConversationService()
 
 
 @router.post(
@@ -56,6 +67,52 @@ def transcribe_voice(
             transcript=transcript,
             model=service.model_name,
         )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+
+
+@router.post(
+    "/chat-turn",
+    response_model=VoiceChatTurnResponse,
+    responses={
+        400: {"model": APIErrorResponse},
+        404: {"model": APIErrorResponse},
+        429: {"model": APIErrorResponse},
+        502: {"model": APIErrorResponse},
+    },
+    dependencies=[Depends(limit_requests(bucket="voice-chat-turn", max_requests=10))],
+)
+def create_voice_chat_turn(
+    payload: VoiceChatTurnRequest,
+    service: VoiceChatConversationService = Depends(get_voice_chat_conversation_service),
+) -> VoiceChatTurnResponse:
+    try:
+        result = service.create_turn_from_base64(
+            audio_base64=payload.audio_base64,
+            mime_type=payload.mime_type,
+            file_name=payload.file_name,
+            reference_context=payload.reference_context,
+            translation=payload.translation,
+        )
+        return VoiceChatTurnResponse(
+            transcript=result.transcript,
+            transcript_model=result.transcript_model,
+            reply=result.reply,
+            reply_model=result.reply_model,
+            audio_base64=base64.b64encode(result.audio_bytes).decode("ascii")
+            if result.audio_bytes
+            else None,
+            audio_mime_type=result.audio_mime_type,
+            audio_model=result.audio_model,
+            audio_voice=result.audio_voice,
+            audio_response_format=result.audio_response_format,
+        )
+    except InvalidReferenceError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except PassageNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except RuntimeError as exc:

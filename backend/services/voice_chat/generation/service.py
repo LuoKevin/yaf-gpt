@@ -43,9 +43,10 @@ class VoiceGenerationService:
         input_text: str,
         voice: str = "alloy",
         instructions: Optional[str] = None,
-        response_format: str = "mp3",
+        response_format: Optional[str] = None,
         speed: float = 1.0,
     ) -> VoiceGenerationResult:
+        default_response_format = getattr(self._provider, "default_response_format", "mp3")
         resolved = resolve_generate_voice_command(
             GenerateVoiceCommand(
                 input_text=input_text,
@@ -55,6 +56,7 @@ class VoiceGenerationService:
                 speed=speed,
             ),
             model_name=self._provider.model_name,
+            default_response_format=default_response_format,
         )
         audio_bytes = self._provider.generate_audio(
             input_text=resolved.input_text,

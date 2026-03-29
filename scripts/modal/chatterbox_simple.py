@@ -6,6 +6,7 @@ provider contract:
   {
     "input_text": "...",
     "voice_prompt_name": "Lucy.wav",
+    "temperature": 0.8,
     "voice": "alloy",
     "instructions": null,
     "speed": 1.0
@@ -32,6 +33,7 @@ import secrets
 from pathlib import Path
 
 import modal
+from fastapi import Request
 
 ENV_PATH = Path(__file__).with_name(".env")
 
@@ -104,9 +106,19 @@ class ChatterboxService:
         return str(prompt_path)
 
     @modal.method()
-    def generate(self, *, input_text: str, voice_prompt_name: str = DEFAULT_VOICE_PROMPT) -> bytes:
+    def generate(
+        self,
+        *,
+        input_text: str,
+        voice_prompt_name: str = DEFAULT_VOICE_PROMPT,
+        temperature: float = 0.8,
+    ) -> bytes:
         prompt_path = self._prompt_path(voice_prompt_name)
-        wav = self.model.generate(input_text, audio_prompt_path=prompt_path)
+        wav = self.model.generate(
+            input_text,
+            audio_prompt_path=prompt_path,
+            temperature=temperature,
+        )
 
         buffer = io.BytesIO()
         ta.save(buffer, wav, self.model.sr, format="wav")
@@ -114,12 +126,9 @@ class ChatterboxService:
         return buffer.read()
 
     @modal.fastapi_endpoint(method="POST", docs=True)
-    def generate_endpoint(self, payload: dict, request):
-        from fastapi import HTTPException, Request
+    def generate_endpoint(self, payload: dict, request: Request):
+        from fastapi import HTTPException
         from fastapi.responses import StreamingResponse
-
-        if not isinstance(request, Request):
-            raise HTTPException(status_code=500, detail="Request context is unavailable.")
 
         self._require_bearer_auth(request)
 
@@ -128,9 +137,16 @@ class ChatterboxService:
 
         input_text = payload.get("input_text")
         voice_prompt_name = payload.get("voice_prompt_name")
+        temperature = payload.get("temperature", 0.8)
 
         if not isinstance(input_text, str) or not input_text.strip():
             raise HTTPException(status_code=400, detail="input_text is required.")
+        try:
+            resolved_temperature = float(temperature)
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail="temperature must be a number.") from exc
+        if resolved_temperature <= 0:
+            raise HTTPException(status_code=400, detail="temperature must be positive.")
 
         resolved_prompt = (
             voice_prompt_name.strip()
@@ -142,6 +158,7 @@ class ChatterboxService:
             audio_bytes = self.generate.local(
                 input_text=input_text.strip(),
                 voice_prompt_name=resolved_prompt,
+                temperature=resolved_temperature,
             )
         except FileNotFoundError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -174,11 +191,13 @@ def test(
     input_text: str = "Chatterbox running on Modal.",
     output_path: str = "tmp/chatterbox-modal-output.wav",
     voice_prompt_name: str = DEFAULT_VOICE_PROMPT,
+    temperature: float = 0.8,
 ) -> None:
     service = ChatterboxService()
     audio_bytes = service.generate.remote(
         input_text=input_text,
         voice_prompt_name=voice_prompt_name,
+        temperature=temperature,
     )
 
     destination = Path(output_path)

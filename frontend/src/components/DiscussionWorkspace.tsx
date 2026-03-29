@@ -5,38 +5,37 @@ import type { PersonaChatMessage } from "../types";
 type DiscussionWorkspaceProps = {
   personaError: string;
   personaMessages: PersonaChatMessage[];
-  isSendingPersona: boolean;
-  isTranscribingPersona: boolean;
-  isRealtimeVoiceConnecting: boolean;
-  isRealtimeVoiceActive: boolean;
-  realtimeVoiceLevel: number;
-  realtimeVoiceStatus: string;
-  onRealtimeVoiceToggle: () => void | Promise<void>;
+  isProcessingPersona: boolean;
+  isRecordingPersona: boolean;
+  isPlayingPersonaAudio: boolean;
+  voiceVisualLevel: number;
+  voiceStatus: string;
+  onRecordToggle: () => void | Promise<void>;
 };
 
 export function DiscussionWorkspace({
   personaError,
   personaMessages,
-  isSendingPersona,
-  isTranscribingPersona,
-  isRealtimeVoiceConnecting,
-  isRealtimeVoiceActive,
-  realtimeVoiceLevel,
-  realtimeVoiceStatus,
-  onRealtimeVoiceToggle
+  isProcessingPersona,
+  isRecordingPersona,
+  isPlayingPersonaAudio,
+  voiceVisualLevel,
+  voiceStatus,
+  onRecordToggle
 }: DiscussionWorkspaceProps) {
   const [isTranscriptOpen, setIsTranscriptOpen] = useState(false);
   const voiceOrbitStyle = {
-    "--voice-level": String(Math.max(0, Math.min(realtimeVoiceLevel, 1)))
+    "--voice-level": String(Math.max(0, Math.min(voiceVisualLevel, 1)))
   } as CSSProperties;
+  const isVoiceActive = isRecordingPersona || isPlayingPersonaAudio;
 
   return (
     <section className="discussion-prototype">
       <div className="workspace-header workspace-header-centered">
         <p className="workspace-kicker">Discussion</p>
-        <h1>Live discussion</h1>
+        <h1>Voice discussion</h1>
         <p className="workspace-copy">
-          Keep this workspace voice-first, with isolated recording, live voice, and transcript state.
+          Record a prompt, tap again to send it, then hear the spoken mentor reply back.
         </p>
       </div>
 
@@ -44,16 +43,17 @@ export function DiscussionWorkspace({
         <div className="discussion-voice-meta">
           <div>
             <p className="section-label">Voice session</p>
-            <h2>{isRealtimeVoiceActive ? "Voice session active" : "Mentor chat"}</h2>
+            <h2>{isVoiceActive ? "Voice session active" : "Mentor chat"}</h2>
             <p className="muted-text">
-              Record a prompt or start a live session. This workspace no longer shares chat state with the text workspace.
+              This workspace is isolated from text chat and handles spoken input plus spoken replies only.
+              {isRecordingPersona ? " Tap the button again to stop and send." : ""}
             </p>
           </div>
           <div className="discussion-status-cluster">
-            {realtimeVoiceStatus ? (
+            {voiceStatus ? (
               <span className="surface-pill loading-pill">
-                {isRealtimeVoiceConnecting ? <span className="loading-spinner" aria-hidden="true" /> : null}
-                <span>{realtimeVoiceStatus}</span>
+                {isProcessingPersona ? <span className="loading-spinner" aria-hidden="true" /> : null}
+                <span>{voiceStatus}</span>
               </span>
             ) : null}
           </div>
@@ -62,7 +62,7 @@ export function DiscussionWorkspace({
         {personaError ? <p className="error-banner">{personaError}</p> : null}
 
         <div className="voice-visualizer-shell">
-          <div className={`voice-orbit ${isRealtimeVoiceActive ? "active" : ""}`} style={voiceOrbitStyle}>
+          <div className={`voice-orbit ${isVoiceActive ? "active" : ""}`} style={voiceOrbitStyle}>
             <div className="voice-orbit-inner">
               <div className="voice-bars">
                 <span />
@@ -80,29 +80,29 @@ export function DiscussionWorkspace({
           <button
             type="button"
             className="danger-button call-button"
-            onClick={onRealtimeVoiceToggle}
-            disabled={isSendingPersona || isTranscribingPersona}
+            onClick={onRecordToggle}
+            disabled={isProcessingPersona}
           >
-            {isRealtimeVoiceConnecting ? (
+            {isProcessingPersona ? (
               <span className="loading-spinner" aria-hidden="true" />
             ) : (
-              <span className="material-symbols-outlined">{isRealtimeVoiceActive ? "call_end" : "wifi_calling_3"}</span>
+              <span className="material-symbols-outlined">{isRecordingPersona ? "stop_circle" : "mic"}</span>
             )}
             <span>
-              {isRealtimeVoiceConnecting
-                ? "Connecting..."
-                : isRealtimeVoiceActive
-                  ? "End discussion"
-                  : "Start live voice"}
+              {isProcessingPersona
+                ? "Processing..."
+                : isRecordingPersona
+                  ? "Stop and send"
+                  : "Start recording"}
             </span>
           </button>
         </div>
 
         <div className="discussion-voice-settings">
-          {isTranscribingPersona ? (
+          {isProcessingPersona ? (
             <div className="loading-inline">
               <span className="loading-spinner" aria-hidden="true" />
-              <p className="muted-text">Transcribing audio...</p>
+              <p className="muted-text">Transcribing and rendering reply...</p>
             </div>
           ) : null}
         </div>
@@ -154,21 +154,15 @@ export function DiscussionWorkspace({
                 </div>
               </article>
             ))}
-            {isTranscribingPersona || isSendingPersona || isRealtimeVoiceConnecting ? (
+            {isProcessingPersona ? (
               <div className="discussion-transcript-status">
                 <span className="loading-spinner" aria-hidden="true" />
-                <span>
-                  {isTranscribingPersona
-                    ? "Transcribing..."
-                    : isRealtimeVoiceConnecting
-                      ? "Connecting live voice..."
-                      : "Waiting for response..."}
-                </span>
+                <span>Waiting for spoken reply...</span>
               </div>
             ) : null}
           </div>
           ) : (
-            <p className="empty-state">Record or start live voice to build the isolated discussion transcript.</p>
+            <p className="empty-state">Start recording, then tap again to send your spoken prompt.</p>
           )}
         </article>
       )}

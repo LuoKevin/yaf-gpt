@@ -12,6 +12,7 @@ from backend.app.routes.image import get_passage_image_service
 from backend.app.routes.music import get_music_generation_service
 from backend.app.routes.study_plan import get_study_plan_service
 from backend.app.routes.voice import (
+    get_voice_chat_conversation_service,
     get_voice_generation_service,
     get_voice_realtime_session_service,
     get_voice_transcription_service,
@@ -172,6 +173,41 @@ class _VoiceRealtimeSessionServiceStub:
         )()
 
 
+class _VoiceChatConversationServiceStub:
+    def create_turn_from_base64(
+        self,
+        *,
+        audio_base64: str,
+        mime_type: str | None = None,
+        file_name: str | None = None,
+        reference_context: str | None = None,
+        translation: str = "WEB",
+    ):
+        if audio_base64 == "bad":
+            raise ValueError("invalid")
+        if reference_context == "Bad 1:1":
+            raise InvalidReferenceError("invalid")
+        if reference_context == "Missing 1:1":
+            raise PassageNotFoundError("not found")
+        if audio_base64 == "provider":
+            raise RuntimeError("provider down")
+        return type(
+            "VoiceChatTurnStub",
+            (),
+            {
+                "transcript": "transcribed question",
+                "transcript_model": "gpt-4o-mini-transcribe",
+                "reply": "spoken mentor reply",
+                "reply_model": "gpt-4o-mini",
+                "audio_bytes": b"voice-audio",
+                "audio_mime_type": "audio/wav",
+                "audio_model": "chatterbox-turbo-modal",
+                "audio_voice": "alloy",
+                "audio_response_format": "wav",
+            },
+        )()
+
+
 class _MusicGenerationServiceStub:
     def generate_music(self, payload):
         if payload.prompt == "bad":
@@ -212,6 +248,7 @@ class APIRouteTests(unittest.TestCase):
         app.dependency_overrides[get_voice_transcription_service] = lambda: _VoiceTranscriptionServiceStub()
         app.dependency_overrides[get_voice_generation_service] = lambda: _VoiceGenerationServiceStub()
         app.dependency_overrides[get_voice_realtime_session_service] = lambda: _VoiceRealtimeSessionServiceStub()
+        app.dependency_overrides[get_voice_chat_conversation_service] = lambda: _VoiceChatConversationServiceStub()
         app.dependency_overrides[get_music_generation_service] = lambda: _MusicGenerationServiceStub()
         self.client = TestClient(app)
 
@@ -428,6 +465,45 @@ class APIRouteTests(unittest.TestCase):
                 "reference_context": "provider",
                 "translation": "WEB",
                 "voice": "cedar",
+            },
+        )
+        self.assertEqual(response.status_code, 502)
+
+    def test_voice_chat_turn_success(self) -> None:
+        response = self.client.post(
+            "/api/voice/chat-turn",
+            json={
+                "audio_base64": "ZmFrZQ==",
+                "mime_type": "audio/webm",
+                "file_name": "voice.webm",
+                "translation": "WEB",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body["transcript"], "transcribed question")
+        self.assertEqual(body["reply"], "spoken mentor reply")
+        self.assertEqual(body["audio_mime_type"], "audio/wav")
+        self.assertEqual(body["audio_response_format"], "wav")
+
+    def test_voice_chat_turn_validation_error_maps_to_400(self) -> None:
+        response = self.client.post(
+            "/api/voice/chat-turn",
+            json={
+                "audio_base64": "bad",
+                "mime_type": "audio/webm",
+                "translation": "WEB",
+            },
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_voice_chat_turn_provider_error_maps_to_502(self) -> None:
+        response = self.client.post(
+            "/api/voice/chat-turn",
+            json={
+                "audio_base64": "provider",
+                "mime_type": "audio/webm",
+                "translation": "WEB",
             },
         )
         self.assertEqual(response.status_code, 502)
