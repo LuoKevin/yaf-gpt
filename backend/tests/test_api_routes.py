@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 from backend.app.main import app
 from backend.app.rate_limit import clear_rate_limit_store
 from backend.app.routes.bible import get_bible_provider
-from backend.app.routes.chat import get_persona_chat_service
+from backend.app.routes.chat import get_chat_service
 from backend.app.routes.image import get_passage_image_service
 from backend.app.routes.music import get_music_generation_service
 from backend.app.routes.study_plan import get_study_plan_service
@@ -18,10 +18,10 @@ from backend.app.routes.voice import (
     get_voice_transcription_service,
 )
 from backend.app.schemas import (
+    ChatResponse,
     MusicGenerateResponse,
     MusicJobResponse,
     PassageImageResponse,
-    PersonaChatResponse,
     StudyPlanResponse,
     UsageMetrics,
     VoiceGenerationResponse,
@@ -32,7 +32,7 @@ from backend.services.study_plan.bible_lookup import (
     PassageNotFoundError,
     PassageVerse,
 )
-from backend.services.voice_chat import PersonaChatProviderError, PersonaChatValidationError
+from backend.services.voice_chat import ChatProviderError, ChatValidationError
 from backend.services.study_plan import StudyPlanValidationError
 from backend.services.voice_chat import VoiceTranscriptionService
 
@@ -88,22 +88,22 @@ class _PassageImageServiceStub:
         )
 
 
-class _PersonaChatServiceStub:
+class _ChatServiceStub:
     def create_reply(self, payload):
         if payload.messages and payload.messages[0].content == "bad":
-            raise PersonaChatValidationError("invalid")
-        return PersonaChatResponse(
-            reply="Sample persona response",
+            raise ChatValidationError("invalid")
+        return ChatResponse(
+            reply="Sample chat response",
             model="gpt-4o-mini",
             usage=UsageMetrics(prompt_tokens=5, completion_tokens=7, total_tokens=12),
         )
 
     def stream_reply(self, payload):
         if payload.messages and payload.messages[0].content == "bad":
-            raise PersonaChatValidationError("invalid")
+            raise ChatValidationError("invalid")
         if payload.messages and payload.messages[0].content == "provider":
-            raise PersonaChatProviderError("provider down")
-        return "gpt-4o-mini", iter(["Sample ", "persona response"])
+            raise ChatProviderError("provider down")
+        return "gpt-4o-mini", iter(["Sample ", "chat response"])
 
 
 class _VoiceTranscriptionServiceStub:
@@ -244,7 +244,7 @@ class APIRouteTests(unittest.TestCase):
         app.dependency_overrides[get_bible_provider] = lambda: _BibleProviderStub()
         app.dependency_overrides[get_study_plan_service] = lambda: _StudyPlanServiceStub()
         app.dependency_overrides[get_passage_image_service] = lambda: _PassageImageServiceStub()
-        app.dependency_overrides[get_persona_chat_service] = lambda: _PersonaChatServiceStub()
+        app.dependency_overrides[get_chat_service] = lambda: _ChatServiceStub()
         app.dependency_overrides[get_voice_transcription_service] = lambda: _VoiceTranscriptionServiceStub()
         app.dependency_overrides[get_voice_generation_service] = lambda: _VoiceGenerationServiceStub()
         app.dependency_overrides[get_voice_realtime_session_service] = lambda: _VoiceRealtimeSessionServiceStub()
@@ -339,7 +339,7 @@ class APIRouteTests(unittest.TestCase):
 
     def test_persona_chat_success(self) -> None:
         response = self.client.post(
-            "/api/persona-chat",
+            "/api/chat",
             json={
                 "messages": [{"role": "user", "content": "How should we apply this passage?"}],
                 "reference_context": "Luke 21:5-28",
@@ -352,7 +352,7 @@ class APIRouteTests(unittest.TestCase):
 
     def test_persona_chat_invalid_payload_maps_to_400(self) -> None:
         response = self.client.post(
-            "/api/persona-chat",
+            "/api/chat",
             json={
                 "messages": [{"role": "user", "content": "bad"}],
                 "translation": "WEB",
@@ -362,7 +362,7 @@ class APIRouteTests(unittest.TestCase):
 
     def test_persona_chat_stream_success(self) -> None:
         response = self.client.post(
-            "/api/persona-chat/stream",
+            "/api/chat/stream",
             json={
                 "messages": [{"role": "user", "content": "How should we apply this passage?"}],
                 "reference_context": "Luke 21:5-28",
@@ -376,12 +376,12 @@ class APIRouteTests(unittest.TestCase):
         self.assertIn('"model": "gpt-4o-mini"', body)
         self.assertIn("event: chunk", body)
         self.assertIn('"delta": "Sample "', body)
-        self.assertIn('"delta": "persona response"', body)
+        self.assertIn('"delta": "chat response"', body)
         self.assertIn("event: done", body)
 
     def test_persona_chat_stream_invalid_payload_maps_to_400(self) -> None:
         response = self.client.post(
-            "/api/persona-chat/stream",
+            "/api/chat/stream",
             json={
                 "messages": [{"role": "user", "content": "bad"}],
                 "translation": "WEB",
@@ -391,7 +391,7 @@ class APIRouteTests(unittest.TestCase):
 
     def test_persona_chat_stream_provider_error_maps_to_502(self) -> None:
         response = self.client.post(
-            "/api/persona-chat/stream",
+            "/api/chat/stream",
             json={
                 "messages": [{"role": "user", "content": "provider"}],
                 "translation": "WEB",

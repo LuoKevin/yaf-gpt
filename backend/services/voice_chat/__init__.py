@@ -1,5 +1,8 @@
 __all__ = [
     "BackendTTSVoiceAudioRenderer",
+    "ChatProviderError",
+    "ChatService",
+    "ChatValidationError",
     "DisabledVoiceAudioRenderer",
     "NativeRealtimeVoiceAudioRenderer",
     "PersonaChatProviderError",
@@ -16,10 +19,21 @@ __all__ = [
 
 
 def __getattr__(name: str):
-    if name in {"PersonaChatProviderError", "PersonaChatService", "PersonaChatValidationError"}:
+    if name in {
+        "ChatProviderError",
+        "ChatService",
+        "ChatValidationError",
+        "PersonaChatProviderError",
+        "PersonaChatService",
+        "PersonaChatValidationError",
+    }:
+        from .chat import ChatProviderError, ChatService, ChatValidationError
         from .persona import PersonaChatProviderError, PersonaChatService, PersonaChatValidationError
 
         exports = {
+            "ChatProviderError": ChatProviderError,
+            "ChatService": ChatService,
+            "ChatValidationError": ChatValidationError,
             "PersonaChatProviderError": PersonaChatProviderError,
             "PersonaChatService": PersonaChatService,
             "PersonaChatValidationError": PersonaChatValidationError,

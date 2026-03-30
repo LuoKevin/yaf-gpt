@@ -6,20 +6,20 @@ import { StudyWorkspace } from "./components/StudyWorkspace";
 import { TextChatWorkspace } from "./components/TextChatWorkspace";
 import { ViewSwitcher } from "./components/ViewSwitcher";
 import {
-  blobToDataUrl,
   requestJson,
+  requestRealtimeAnswer,
   requestSse
 } from "./lib/api";
 import type {
   BiblePassageResponse,
+  ChatMessage,
   MusicGenerateResponse,
   MusicJobResponse,
   PassageImageResponse,
-  PersonaChatMessage,
   SseEventPayload,
   TranslationCode,
   ViewMode,
-  VoiceChatTurnResponse,
+  VoiceRealtimeSessionResponse,
   StudyPlanResponse
 } from "./types";
 
@@ -45,22 +45,28 @@ export default function App() {
   const [isLoadingPassageImage, setIsLoadingPassageImage] = useState(false);
 
   const [chatInput, setChatInput] = useState("");
-  const [chatMessages, setChatMessages] = useState<PersonaChatMessage[]>([]);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatModel, setChatModel] = useState<string | null>(null);
   const [chatError, setChatError] = useState("");
   const [isSendingChat, setIsSendingChat] = useState(false);
 
-  const [discussionMessages, setDiscussionMessages] = useState<PersonaChatMessage[]>([]);
+  const [discussionMessages, setDiscussionMessages] = useState<ChatMessage[]>([]);
   const [discussionError, setDiscussionError] = useState("");
-  const [isRecordingDiscussion, setIsRecordingDiscussion] = useState(false);
-  const [isProcessingDiscussion, setIsProcessingDiscussion] = useState(false);
+  const [isConnectingDiscussion, setIsConnectingDiscussion] = useState(false);
+  const [isDiscussionSessionActive, setIsDiscussionSessionActive] = useState(false);
   const [isPlayingDiscussionAudio, setIsPlayingDiscussionAudio] = useState(false);
   const [discussionVoiceStatus, setDiscussionVoiceStatus] = useState("");
   const [discussionVoiceVisualLevel, setDiscussionVoiceVisualLevel] = useState(0);
 
-  const discussionRecorderRef = useRef<MediaRecorder | null>(null);
+  const discussionDataChannelRef = useRef<RTCDataChannel | null>(null);
+  const discussionPeerConnectionRef = useRef<RTCPeerConnection | null>(null);
+  const discussionMessageIndexByItemIdRef = useRef<Map<string, number>>(new Map());
+  const discussionSessionActiveRef = useRef(false);
+  const discussionAudioContextRef = useRef<AudioContext | null>(null);
+  const discussionAudioAnalyserRef = useRef<AnalyserNode | null>(null);
+  const discussionAudioSourceNodeRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const discussionAudioAnimationFrameRef = useRef<number | null>(null);
   const discussionStreamRef = useRef<MediaStream | null>(null);
-  const discussionChunksRef = useRef<Blob[]>([]);
   const discussionAudioRef = useRef<HTMLAudioElement | null>(null);
   const discussionAudioUrlRef = useRef<string | null>(null);
 
@@ -74,6 +80,10 @@ export default function App() {
 
   const musicJobId = musicResult?.job_id ?? null;
   const musicJobStatus = musicJob?.status ?? musicResult?.status ?? null;
+
+  useEffect(() => {
+    discussionSessionActiveRef.current = isDiscussionSessionActive;
+  }, [isDiscussionSessionActive]);
 
   useEffect(() => {
     if (!musicJobId) {
@@ -113,8 +123,6 @@ export default function App() {
       discussionStreamRef.current.getTracks().forEach((track) => track.stop());
     }
     discussionStreamRef.current = null;
-    discussionRecorderRef.current = null;
-    discussionChunksRef.current = [];
   }
 
   function getDiscussionAudioElement() {
@@ -123,17 +131,16 @@ export default function App() {
       audio.autoplay = true;
       audio.onplay = () => {
         setIsPlayingDiscussionAudio(true);
-        setDiscussionVoiceStatus("Playing spoken reply...");
-        setDiscussionVoiceVisualLevel(0.9);
+        setDiscussionVoiceStatus("Mentor is speaking...");
       };
       audio.onended = () => {
         setIsPlayingDiscussionAudio(false);
-        setDiscussionVoiceStatus("Voice reply ready.");
-        setDiscussionVoiceVisualLevel(0);
+        setDiscussionVoiceStatus(discussionSessionActiveRef.current ? "Live session connected." : "Voice reply ready.");
+        setDiscussionVoiceVisualLevel(discussionSessionActiveRef.current ? 0.6 : 0);
       };
       audio.onpause = () => {
         setIsPlayingDiscussionAudio(false);
-        setDiscussionVoiceVisualLevel(0);
+        setDiscussionVoiceVisualLevel(discussionSessionActiveRef.current ? 0.6 : 0);
       };
       discussionAudioRef.current = audio;
     }
@@ -152,13 +159,136 @@ export default function App() {
     }
   }
 
+  function stopDiscussionVoiceVisualizer() {
+    if (discussionAudioAnimationFrameRef.current !== null) {
+      window.cancelAnimationFrame(discussionAudioAnimationFrameRef.current);
+      discussionAudioAnimationFrameRef.current = null;
+    }
+
+    if (discussionAudioSourceNodeRef.current) {
+      discussionAudioSourceNodeRef.current.disconnect();
+      discussionAudioSourceNodeRef.current = null;
+    }
+
+    if (discussionAudioAnalyserRef.current) {
+      discussionAudioAnalyserRef.current.disconnect();
+      discussionAudioAnalyserRef.current = null;
+    }
+
+    if (discussionAudioContextRef.current) {
+      void discussionAudioContextRef.current.close();
+      discussionAudioContextRef.current = null;
+    }
+  }
+
+  async function startDiscussionVoiceVisualizer(stream: MediaStream) {
+    stopDiscussionVoiceVisualizer();
+
+    const AudioContextCtor = window.AudioContext || (window as typeof window & {
+      webkitAudioContext?: typeof AudioContext;
+    }).webkitAudioContext;
+
+    if (!AudioContextCtor) {
+      return;
+    }
+
+    const context = new AudioContextCtor();
+    discussionAudioContextRef.current = context;
+
+    if (context.state === "suspended") {
+      await context.resume();
+    }
+
+    const analyser = context.createAnalyser();
+    analyser.fftSize = 2048;
+    analyser.smoothingTimeConstant = 0.9;
+    discussionAudioAnalyserRef.current = analyser;
+
+    const sourceNode = context.createMediaStreamSource(stream);
+    sourceNode.connect(analyser);
+    discussionAudioSourceNodeRef.current = sourceNode;
+
+    const sampleBuffer = new Uint8Array(analyser.fftSize);
+    let smoothedLevel = 0;
+    let warmupFrames = 10;
+
+    const tick = () => {
+      const activeSession = discussionSessionActiveRef.current;
+      const activeAudio = !discussionAudioRef.current?.paused;
+
+      analyser.getByteTimeDomainData(sampleBuffer);
+      const rms = Math.sqrt(
+        sampleBuffer.reduce((total, value) => {
+          const centered = (value - 128) / 128;
+          return total + centered * centered;
+        }, 0) / Math.max(sampleBuffer.length, 1),
+      );
+      const normalizedLevel = Math.min(1, rms * 5.5);
+      const attack = warmupFrames > 0 ? 0.08 : 0.18;
+      const release = 0.9;
+      smoothedLevel =
+        normalizedLevel > smoothedLevel
+          ? smoothedLevel + (normalizedLevel - smoothedLevel) * attack
+          : smoothedLevel * release + normalizedLevel * (1 - release);
+
+      if (warmupFrames > 0) {
+        warmupFrames -= 1;
+      }
+
+      if (activeAudio || smoothedLevel > 0.05) {
+        setDiscussionVoiceVisualLevel(Math.max(0.06, smoothedLevel));
+      } else if (activeSession) {
+        setDiscussionVoiceVisualLevel(0.6);
+      } else {
+        setDiscussionVoiceVisualLevel(0);
+      }
+
+      discussionAudioAnimationFrameRef.current = window.requestAnimationFrame(tick);
+    };
+
+    discussionAudioAnimationFrameRef.current = window.requestAnimationFrame(tick);
+  }
+
+  function closeDiscussionRealtimeSession() {
+    const dataChannel = discussionDataChannelRef.current;
+    if (dataChannel) {
+      dataChannel.onopen = null;
+      dataChannel.onmessage = null;
+      dataChannel.onerror = null;
+      dataChannel.onclose = null;
+      dataChannel.close();
+    }
+    discussionDataChannelRef.current = null;
+
+    const peerConnection = discussionPeerConnectionRef.current;
+    if (peerConnection) {
+      peerConnection.ontrack = null;
+      peerConnection.onconnectionstatechange = null;
+      peerConnection.close();
+    }
+    discussionPeerConnectionRef.current = null;
+
+    const audio = discussionAudioRef.current;
+    if (audio) {
+      audio.pause();
+      audio.srcObject = null;
+      audio.removeAttribute("src");
+      audio.load();
+    }
+
+    releaseDiscussionMediaResources();
+    stopDiscussionVoiceVisualizer();
+    setIsConnectingDiscussion(false);
+    setIsDiscussionSessionActive(false);
+    setIsPlayingDiscussionAudio(false);
+    setDiscussionVoiceVisualLevel(0);
+    discussionMessageIndexByItemIdRef.current.clear();
+  }
+
   useEffect(() => {
     return () => {
-      if (discussionRecorderRef.current && discussionRecorderRef.current.state !== "inactive") {
-        discussionRecorderRef.current.stop();
-      }
       stopDiscussionAudioPlayback();
-      releaseDiscussionMediaResources();
+      closeDiscussionRealtimeSession();
     };
   }, []);
 
@@ -255,8 +385,8 @@ export default function App() {
     onReplyFinished,
   }: {
     rawMessage: string;
-    currentMessages: PersonaChatMessage[];
-    setMessages: Dispatch<SetStateAction<PersonaChatMessage[]>>;
+    currentMessages: ChatMessage[];
+    setMessages: Dispatch<SetStateAction<ChatMessage[]>>;
     setError: Dispatch<SetStateAction<string>>;
     setIsSending: Dispatch<SetStateAction<boolean>>;
     setModel: Dispatch<SetStateAction<string | null>>;
@@ -268,7 +398,7 @@ export default function App() {
       return;
     }
 
-    const nextMessages = [...currentMessages, { role: "user", content: userMessage } as PersonaChatMessage];
+    const nextMessages = [...currentMessages, { role: "user", content: userMessage } as ChatMessage];
     setMessages([...nextMessages, { role: "assistant", content: "" }]);
     setError("");
     setIsSending(true);
@@ -278,7 +408,7 @@ export default function App() {
       let receivedChunk = false;
       let assistantReply = "";
       await requestSse(
-        "/api/persona-chat/stream",
+        "/api/chat/stream",
         {
           method: "POST",
           headers: {
@@ -393,70 +523,111 @@ export default function App() {
     });
   }
 
-  async function playDiscussionAudio(audioBase64: string, mimeType: string | null) {
-    stopDiscussionAudioPlayback();
-
-    const byteCharacters = window.atob(audioBase64);
-    const byteNumbers = new Array(byteCharacters.length);
-    for (let index = 0; index < byteCharacters.length; index += 1) {
-      byteNumbers[index] = byteCharacters.charCodeAt(index);
-    }
-    const audioBlob = new Blob([new Uint8Array(byteNumbers)], { type: mimeType || "audio/wav" });
-    const audioUrl = URL.createObjectURL(audioBlob);
-    discussionAudioUrlRef.current = audioUrl;
-
-    const audio = getDiscussionAudioElement();
-    audio.src = audioUrl;
-    await audio.play();
-  }
-
-  async function createDiscussionVoiceTurn(blob: Blob) {
-    setIsProcessingDiscussion(true);
-    setDiscussionError("");
-    setDiscussionVoiceStatus("Transcribing your message...");
-    setDiscussionVoiceVisualLevel(0.65);
-
-    try {
-      const audioBase64 = await blobToDataUrl(blob);
-      const response = await requestJson<VoiceChatTurnResponse>("/api/voice/chat-turn", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          audio_base64: audioBase64,
-          mime_type: blob.type || "audio/webm",
-          file_name: "voice_input.webm"
-        })
-      });
-
-      setDiscussionMessages((current) => [
-        ...current,
-        { role: "user", content: response.transcript },
-        { role: "assistant", content: response.reply }
-      ]);
-      setDiscussionVoiceStatus(response.audio_base64 ? "Rendering spoken reply..." : "Voice reply unavailable.");
-
-      if (response.audio_base64) {
-        await playDiscussionAudio(response.audio_base64, response.audio_mime_type);
-      } else {
-        setDiscussionVoiceVisualLevel(0);
-      }
-    } catch (error) {
-      setDiscussionVoiceStatus("");
-      setDiscussionVoiceVisualLevel(0);
-      setDiscussionError(error instanceof Error ? error.message : "Unable to process recorded audio.");
-    } finally {
-      setIsProcessingDiscussion(false);
-    }
-  }
-
-  async function startDiscussionRecording() {
-    if (isRecordingDiscussion || isProcessingDiscussion) {
+  function upsertDiscussionMessage(itemId: string, role: ChatMessage["role"], content: string, append = false) {
+    if (!itemId) {
       return;
     }
-    if (typeof window === "undefined" || typeof MediaRecorder === "undefined") {
-      setDiscussionError("Voice input is not supported in this browser.");
+
+    setDiscussionMessages((current) => {
+      const next = [...current];
+      const existingIndex = discussionMessageIndexByItemIdRef.current.get(itemId);
+
+      if (existingIndex === undefined) {
+        discussionMessageIndexByItemIdRef.current.set(itemId, next.length);
+        next.push({ role, content });
+        return next;
+      }
+
+      const existingMessage = next[existingIndex];
+      if (!existingMessage) {
+        discussionMessageIndexByItemIdRef.current.set(itemId, next.length);
+        next.push({ role, content });
+        return next;
+      }
+
+      next[existingIndex] = {
+        role,
+        content: append ? `${existingMessage.content}${content}` : content,
+      };
+      return next;
+    });
+  }
+
+  function handleDiscussionRealtimeEvent(event: unknown) {
+    if (!event || typeof event !== "object" || !("type" in event) || typeof event.type !== "string") {
+      return;
+    }
+
+    if (event.type === "conversation.item.input_audio_transcription.completed") {
+      const itemId = "item_id" in event && typeof event.item_id === "string" ? event.item_id : "";
+      const transcript = "transcript" in event && typeof event.transcript === "string" ? event.transcript : "";
+      if (itemId && transcript) {
+        upsertDiscussionMessage(itemId, "user", transcript);
+        setDiscussionVoiceStatus("Heard you. Waiting for mentor reply...");
+        setDiscussionVoiceVisualLevel(0.7);
+      }
+      return;
+    }
+
+    if (event.type === "response.output_audio_transcript.delta") {
+      const itemId = "item_id" in event && typeof event.item_id === "string" ? event.item_id : "";
+      const delta = "delta" in event && typeof event.delta === "string" ? event.delta : "";
+      if (itemId && delta) {
+        upsertDiscussionMessage(itemId, "assistant", delta, true);
+        setDiscussionVoiceStatus("Mentor is responding...");
+      }
+      return;
+    }
+
+    if (event.type === "response.output_audio_transcript.done") {
+      const itemId = "item_id" in event && typeof event.item_id === "string" ? event.item_id : "";
+      const transcript = "transcript" in event && typeof event.transcript === "string" ? event.transcript : "";
+      if (itemId && transcript) {
+        upsertDiscussionMessage(itemId, "assistant", transcript);
+        setDiscussionVoiceStatus("Live session connected.");
+      }
+      return;
+    }
+
+    if (event.type === "input_audio_buffer.speech_started") {
+      setDiscussionVoiceStatus("Listening...");
+      setDiscussionVoiceVisualLevel(0.95);
+      return;
+    }
+
+    if (event.type === "input_audio_buffer.speech_stopped") {
+      setDiscussionVoiceStatus("Processing your speech...");
+      setDiscussionVoiceVisualLevel(0.72);
+      return;
+    }
+
+    if (event.type === "response.done") {
+      setDiscussionVoiceStatus("Live session connected.");
+      setDiscussionVoiceVisualLevel(0.6);
+      return;
+    }
+
+    if (event.type === "error") {
+      const detail =
+        "error" in event &&
+        event.error &&
+        typeof event.error === "object" &&
+        "message" in event.error &&
+        typeof event.error.message === "string"
+          ? event.error.message
+          : "Realtime voice session failed.";
+      setDiscussionError(detail);
+      setDiscussionVoiceStatus("");
+      setDiscussionVoiceVisualLevel(0);
+    }
+  }
+
+  async function startDiscussionRealtimeSession() {
+    if (isConnectingDiscussion || isDiscussionSessionActive) {
+      return;
+    }
+    if (typeof window === "undefined" || typeof RTCPeerConnection === "undefined") {
+      setDiscussionError("Realtime voice is not supported in this browser.");
       return;
     }
     if (!navigator.mediaDevices?.getUserMedia) {
@@ -464,78 +635,127 @@ export default function App() {
       return;
     }
 
+    setIsConnectingDiscussion(true);
+    setDiscussionError("");
+    setDiscussionVoiceStatus("Opening live session...");
+    setDiscussionVoiceVisualLevel(0.55);
+
     try {
       stopDiscussionAudioPlayback();
+
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const preferredMimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
-        ? "audio/webm;codecs=opus"
-        : "audio/webm";
-      const recorder = MediaRecorder.isTypeSupported(preferredMimeType)
-        ? new MediaRecorder(stream, { mimeType: preferredMimeType })
-        : new MediaRecorder(stream);
-
       discussionStreamRef.current = stream;
-      discussionRecorderRef.current = recorder;
-      discussionChunksRef.current = [];
 
-      recorder.ondataavailable = (event) => {
-        if (event.data && event.data.size > 0) {
-          discussionChunksRef.current.push(event.data);
-        }
-      };
+      const session = await requestJson<VoiceRealtimeSessionResponse>("/api/voice/realtime/session", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          reference_context: reference.trim() || undefined,
+          translation,
+          voice: "cedar"
+        })
+      });
 
-      recorder.onerror = () => {
-        setDiscussionError("Recording failed.");
-        setDiscussionVoiceStatus("");
-        setDiscussionVoiceVisualLevel(0);
-        setIsRecordingDiscussion(false);
-        releaseDiscussionMediaResources();
-      };
+      const peerConnection = new RTCPeerConnection();
+      discussionPeerConnectionRef.current = peerConnection;
 
-      recorder.onstop = () => {
-        const chunks = [...discussionChunksRef.current];
-        const blobType = recorder.mimeType || "audio/webm";
-        setIsRecordingDiscussion(false);
-        setDiscussionVoiceVisualLevel(0);
-        releaseDiscussionMediaResources();
+      stream.getTracks().forEach((track) => {
+        peerConnection.addTrack(track, stream);
+      });
 
-        if (chunks.length === 0) {
-          setDiscussionError("No audio captured.");
+      peerConnection.ontrack = (event) => {
+        const audio = getDiscussionAudioElement();
+        const [remoteStream] = event.streams;
+        if (!remoteStream) {
           return;
         }
-
-        const recording = new Blob(chunks, { type: blobType });
-        void createDiscussionVoiceTurn(recording);
+        audio.srcObject = remoteStream;
+        void startDiscussionVoiceVisualizer(remoteStream).catch(() => {
+          // Keep live audio working even if the browser blocks analysis setup.
+        });
+        void audio.play().catch(() => {
+          setDiscussionVoiceStatus("Mentor audio is ready. Press play if your browser blocked autoplay.");
+        });
       };
 
-      setDiscussionError("");
-      setDiscussionVoiceStatus("Listening...");
-      setDiscussionVoiceVisualLevel(0.95);
-      recorder.start();
-      setIsRecordingDiscussion(true);
+      peerConnection.onconnectionstatechange = () => {
+        const state = peerConnection.connectionState;
+        if (state === "connected") {
+          setDiscussionVoiceStatus("Live session connected.");
+          setDiscussionVoiceVisualLevel(0.6);
+        } else if (state === "failed" || state === "disconnected" || state === "closed") {
+          if (discussionSessionActiveRef.current || discussionDataChannelRef.current || discussionPeerConnectionRef.current) {
+            closeDiscussionRealtimeSession();
+            setDiscussionVoiceStatus("");
+          }
+        }
+      };
+
+      const dataChannel = peerConnection.createDataChannel("oai-events");
+      discussionDataChannelRef.current = dataChannel;
+
+      dataChannel.onopen = () => {
+        setIsConnectingDiscussion(false);
+        setIsDiscussionSessionActive(true);
+        setDiscussionVoiceStatus("Live session connected.");
+        setDiscussionVoiceVisualLevel(0.6);
+      };
+
+      dataChannel.onmessage = (messageEvent) => {
+        try {
+          handleDiscussionRealtimeEvent(JSON.parse(String(messageEvent.data)));
+        } catch {
+          // Ignore malformed data-channel events.
+        }
+      };
+
+      dataChannel.onerror = () => {
+        setDiscussionError("Realtime event channel failed.");
+      };
+
+      dataChannel.onclose = () => {
+        if (discussionSessionActiveRef.current) {
+          closeDiscussionRealtimeSession();
+        }
+      };
+
+      const offer = await peerConnection.createOffer();
+      await peerConnection.setLocalDescription(offer);
+
+      const answerSdp = await requestRealtimeAnswer(
+        session.webrtc_url,
+        session.client_secret,
+        offer.sdp ?? "",
+      );
+
+      await peerConnection.setRemoteDescription({
+        type: "answer",
+        sdp: answerSdp,
+      });
     } catch (error) {
-      setDiscussionError(error instanceof Error ? error.message : "Unable to access microphone.");
+      closeDiscussionRealtimeSession();
+      setDiscussionError(error instanceof Error ? error.message : "Unable to start live voice session.");
       setDiscussionVoiceStatus("");
       setDiscussionVoiceVisualLevel(0);
-      setIsRecordingDiscussion(false);
-      releaseDiscussionMediaResources();
+    } finally {
+      setIsConnectingDiscussion(false);
     }
   }
 
-  function stopDiscussionRecording() {
-    if (!discussionRecorderRef.current || discussionRecorderRef.current.state === "inactive") {
-      return;
-    }
-    discussionRecorderRef.current.stop();
+  function endDiscussionRealtimeSession() {
+    closeDiscussionRealtimeSession();
+    setDiscussionVoiceStatus("");
   }
 
-  async function handleDiscussionRecordToggle() {
-    if (isRecordingDiscussion) {
-      stopDiscussionRecording();
+  async function handleDiscussionSessionToggle() {
+    if (isDiscussionSessionActive || isConnectingDiscussion) {
+      endDiscussionRealtimeSession();
       return;
     }
 
-    await startDiscussionRecording();
+    await startDiscussionRealtimeSession();
   }
 
   function handleTextChatReset() {
@@ -629,12 +849,12 @@ export default function App() {
         >
           {activeView === "chat" ? (
             <TextChatWorkspace
-              personaError={chatError}
-              personaMessages={chatMessages}
-              personaInput={chatInput}
-              isSendingPersona={isSendingChat}
-              onPersonaInputChange={setChatInput}
-              onPersonaSend={handleTextChatSend}
+              chatError={chatError}
+              chatMessages={chatMessages}
+              chatInput={chatInput}
+              isSendingChat={isSendingChat}
+              onChatInputChange={setChatInput}
+              onChatSend={handleTextChatSend}
             />
           ) : null}
 
@@ -660,14 +880,14 @@ export default function App() {
 
           {activeView === "discussion" ? (
             <DiscussionWorkspace
-              personaError={discussionError}
-              personaMessages={discussionMessages}
-              isProcessingPersona={isProcessingDiscussion}
-              isRecordingPersona={isRecordingDiscussion}
-              isPlayingPersonaAudio={isPlayingDiscussionAudio}
+              discussionError={discussionError}
+              discussionMessages={discussionMessages}
+              isConnectingSession={isConnectingDiscussion}
+              isSessionActive={isDiscussionSessionActive}
+              isPlayingSessionAudio={isPlayingDiscussionAudio}
               voiceVisualLevel={discussionVoiceVisualLevel}
               voiceStatus={discussionVoiceStatus}
-              onRecordToggle={handleDiscussionRecordToggle}
+              onSessionToggle={handleDiscussionSessionToggle}
             />
           ) : null}
 

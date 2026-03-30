@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import unittest
 
-from backend.app.schemas import PersonaChatMessage, PersonaChatRequest
+from backend.app.schemas import ChatRequest, ChatRequestMessage
 from backend.llm.provider import ChatChunk, ChatResponse, ProviderError
 from backend.services.study_plan.bible_lookup import PassageData, PassageVerse
 from backend.services.voice_chat import (
-    PersonaChatProviderError,
-    PersonaChatService,
-    PersonaChatValidationError,
+    ChatProviderError,
+    ChatService,
+    ChatValidationError,
 )
 
 
@@ -56,18 +56,18 @@ class _FakeChatProvider:
             yield ChatChunk(content_delta=chunk)
 
 
-class PersonaChatServiceTests(unittest.TestCase):
-    def test_generates_persona_reply_with_reference_context(self) -> None:
+class ChatServiceTests(unittest.TestCase):
+    def test_generates_chat_reply_with_reference_context(self) -> None:
         chat_provider = _FakeChatProvider()
-        service = PersonaChatService(
+        service = ChatService(
             bible_provider=_FakeBibleProvider(),
             chat_provider=chat_provider,
             model="gpt-4o-mini",
         )
 
         response = service.create_reply(
-            PersonaChatRequest(
-                messages=[PersonaChatMessage(role="user", content="What should we notice first?")],
+            ChatRequest(
+                messages=[ChatRequestMessage(role="user", content="What should we notice first?")],
                 reference_context="Luke 21:5-28",
                 translation="WEB",
             )
@@ -83,31 +83,31 @@ class PersonaChatServiceTests(unittest.TestCase):
         )
 
     def test_rejects_empty_reply(self) -> None:
-        service = PersonaChatService(
+        service = ChatService(
             bible_provider=_FakeBibleProvider(),
             chat_provider=_FakeChatProvider(content="   "),
             model="gpt-4o-mini",
         )
 
-        with self.assertRaises(PersonaChatValidationError):
+        with self.assertRaises(ChatValidationError):
             service.create_reply(
-                PersonaChatRequest(
-                    messages=[PersonaChatMessage(role="user", content="hello")],
+                ChatRequest(
+                    messages=[ChatRequestMessage(role="user", content="hello")],
                     translation="WEB",
                 )
             )
 
-    def test_streams_persona_reply(self) -> None:
+    def test_streams_chat_reply(self) -> None:
         chat_provider = _FakeChatProvider(stream_chunks=["Focus on Christ. ", "Stand firm."])
-        service = PersonaChatService(
+        service = ChatService(
             bible_provider=_FakeBibleProvider(),
             chat_provider=chat_provider,
             model="gpt-4o-mini",
         )
 
         model, chunks = service.stream_reply(
-            PersonaChatRequest(
-                messages=[PersonaChatMessage(role="user", content="Give me two takeaways.")],
+            ChatRequest(
+                messages=[ChatRequestMessage(role="user", content="Give me two takeaways.")],
                 reference_context="Luke 21:5-28",
                 translation="WEB",
             )
@@ -118,31 +118,31 @@ class PersonaChatServiceTests(unittest.TestCase):
         self.assertIsNotNone(chat_provider.last_messages)
 
     def test_stream_rejects_empty_reply(self) -> None:
-        service = PersonaChatService(
+        service = ChatService(
             bible_provider=_FakeBibleProvider(),
             chat_provider=_FakeChatProvider(stream_chunks=[]),
             model="gpt-4o-mini",
         )
 
-        with self.assertRaises(PersonaChatValidationError):
+        with self.assertRaises(ChatValidationError):
             service.stream_reply(
-                PersonaChatRequest(
-                    messages=[PersonaChatMessage(role="user", content="hello")],
+                ChatRequest(
+                    messages=[ChatRequestMessage(role="user", content="hello")],
                     translation="WEB",
                 )
             )
 
     def test_stream_maps_provider_error(self) -> None:
-        service = PersonaChatService(
+        service = ChatService(
             bible_provider=_FakeBibleProvider(),
             chat_provider=_FakeChatProvider(stream_error="provider down"),
             model="gpt-4o-mini",
         )
 
-        with self.assertRaises(PersonaChatProviderError):
+        with self.assertRaises(ChatProviderError):
             service.stream_reply(
-                PersonaChatRequest(
-                    messages=[PersonaChatMessage(role="user", content="hello")],
+                ChatRequest(
+                    messages=[ChatRequestMessage(role="user", content="hello")],
                     translation="WEB",
                 )
             )

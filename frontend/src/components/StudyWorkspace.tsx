@@ -85,6 +85,9 @@ const PRESET_PASSAGES = [
   { reference: "John 15:1-17", label: "John 15:1–17 — Abide in me / love one another" }
 ] as const;
 
+const TYPING_INTERVAL_MS = 18;
+const TYPING_CHARS_PER_TICK = 3;
+
 function normalizeBookInput(value: string) {
   return value.trim().replace(/\s+/g, " ");
 }
@@ -110,6 +113,42 @@ function parseReferenceParts(reference: string) {
     book: matchedBook,
     range: cleaned.slice(matchedBook.length).trim()
   };
+}
+
+function useTypingProgress(contentKey: string | null, totalChars: number) {
+  const [visibleChars, setVisibleChars] = useState(totalChars);
+
+  useEffect(() => {
+    if (!contentKey || totalChars <= 0) {
+      setVisibleChars(totalChars);
+      return;
+    }
+
+    setVisibleChars(0);
+    const timer = window.setInterval(() => {
+      setVisibleChars((current) => {
+        if (current >= totalChars) {
+          window.clearInterval(timer);
+          return totalChars;
+        }
+        return Math.min(current + TYPING_CHARS_PER_TICK, totalChars);
+      });
+    }, TYPING_INTERVAL_MS);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [contentKey, totalChars]);
+
+  return visibleChars;
+}
+
+function sumStrings(values: string[]) {
+  return values.reduce((total, value) => total + value.length, 0);
+}
+
+function sumStudyPlanListChars(items: string[], notes?: Array<string | null | undefined>) {
+  return items.reduce((total, item, index) => total + item.length + (notes?.[index]?.length ?? 0), 0);
 }
 
 type StudyWorkspaceProps = {
@@ -239,6 +278,54 @@ export function StudyWorkspace({
   const headingRest = parsedReference.range;
   const selectedPresetReference =
     PRESET_PASSAGES.find((preset) => normalizeReferenceMatch(preset.reference) === normalizeReferenceMatch(reference))?.reference ?? "";
+  const passageTypingKey = useMemo(() => {
+    if (!passage) {
+      return null;
+    }
+    return `${passage.normalized_reference}:${passage.translation}:${passage.text}`;
+  }, [passage]);
+  const studyPlanTypingKey = useMemo(() => {
+    if (!studyPlan) {
+      return null;
+    }
+    return JSON.stringify({
+      title: studyPlan.passage_title,
+      context: studyPlan.context_points,
+      discussion: studyPlan.discussion_questions,
+      discussionNotes: studyPlan.discussion_question_notes,
+      reflection: studyPlan.reflection_questions,
+      reflectionNotes: studyPlan.reflection_question_notes,
+    });
+  }, [studyPlan]);
+  const passageTotalChars = useMemo(() => {
+    if (!passage) {
+      return 0;
+    }
+    if (passage.verses.length > 0) {
+      return sumStrings(passage.verses.map((verse) => verse.text));
+    }
+    return passage.text.length;
+  }, [passage]);
+  const studyPlanTitleChars = studyPlan?.passage_title.length ?? 0;
+  const studyPlanBodyChars = useMemo(() => {
+    if (!studyPlan) {
+      return 0;
+    }
+    return (
+      sumStrings(studyPlan.context_points) +
+      sumStudyPlanListChars(studyPlan.discussion_questions, studyPlan.discussion_question_notes) +
+      sumStudyPlanListChars(studyPlan.reflection_questions, studyPlan.reflection_question_notes)
+    );
+  }, [studyPlan]);
+  const visiblePassageChars = useTypingProgress(passageTypingKey, passageTotalChars);
+  const visibleStudyPlanTitleChars = useTypingProgress(
+    studyPlanTypingKey ? `${studyPlanTypingKey}:title` : null,
+    studyPlanTitleChars,
+  );
+  const visibleStudyPlanBodyChars = useTypingProgress(
+    studyPlanTypingKey ? `${studyPlanTypingKey}:body` : null,
+    studyPlanBodyChars,
+  );
 
   function handlePresetChange(value: string) {
     if (!value) {
@@ -248,6 +335,73 @@ export function StudyWorkspace({
     setBookFilterQuery("");
     setIsBookFiltering(false);
     onReferenceChange(value);
+  }
+
+  function renderTypedVerseFlow() {
+    if (!passage) {
+      return null;
+    }
+
+    let remainingChars = visiblePassageChars;
+    return passage.verses.map((verse) => {
+      if (remainingChars <= 0) {
+        return null;
+      }
+
+      const visibleText = verse.text.slice(0, remainingChars);
+      remainingChars = Math.max(0, remainingChars - verse.text.length);
+
+      if (!visibleText) {
+        return null;
+      }
+
+      return (
+        <span key={`${verse.book}-${verse.chapter}-${verse.verse}`} className="study-verse-inline">
+          <sup className="study-verse-number-inline">{verse.verse}</sup>
+          <span>{visibleText}</span>{" "}
+        </span>
+      );
+    });
+  }
+
+  function renderTypedList(
+    items: string[],
+    visibleChars: number,
+    notes?: Array<string | null | undefined>,
+  ) {
+    let remainingChars = visibleChars;
+
+    return items.map((item, index) => {
+      if (remainingChars <= 0) {
+        return null;
+      }
+
+      const visibleItem = item.slice(0, remainingChars);
+      remainingChars = Math.max(0, remainingChars - item.length);
+
+      if (!visibleItem) {
+        return null;
+      }
+
+      const note = notes?.[index] ?? null;
+      const visibleNote =
+        note && visibleItem.length === item.length && remainingChars > 0
+          ? note.slice(0, remainingChars)
+          : "";
+
+      if (visibleNote) {
+        remainingChars = Math.max(0, remainingChars - note.length);
+      }
+
+      return (
+        <li key={`${index}-${item}`}>
+          {visibleItem}
+          {visibleNote ? (
+            <p className="question-note">{visibleNote}</p>
+          ) : null}
+        </li>
+      );
+    });
   }
 
   return (
@@ -385,17 +539,10 @@ export function StudyWorkspace({
               </div>
               {passage.verses.length > 0 ? (
                 <div className="study-verse-flow">
-                  <p className="study-passage-text">
-                    {passage.verses.map((verse) => (
-                      <span key={`${verse.book}-${verse.chapter}-${verse.verse}`} className="study-verse-inline">
-                        <sup className="study-verse-number-inline">{verse.verse}</sup>
-                        <span>{verse.text}</span>{" "}
-                      </span>
-                    ))}
-                  </p>
+                  <p className="study-passage-text">{renderTypedVerseFlow()}</p>
                 </div>
               ) : (
-                <p className="study-passage-text">{passage.text}</p>
+                <p className="study-passage-text">{passage.text.slice(0, visiblePassageChars)}</p>
               )}
             </>
           ) : (
@@ -408,7 +555,11 @@ export function StudyWorkspace({
           <div className="card-header">
             <div>
               <p className="section-label">Study plan</p>
-              <h3>{studyPlan?.passage_title ?? "Waiting for a plan"}</h3>
+              <h3>
+                {studyPlan
+                  ? studyPlan.passage_title.slice(0, visibleStudyPlanTitleChars)
+                  : "Waiting for a plan"}
+              </h3>
             </div>
           </div>
 
@@ -424,35 +575,32 @@ export function StudyWorkspace({
               <section>
                 <h4>Context</h4>
                 <ul className="prototype-list">
-                  {studyPlan.context_points.map((point) => (
-                    <li key={point}>{point}</li>
-                  ))}
+                  {renderTypedList(studyPlan.context_points, visibleStudyPlanBodyChars)}
                 </ul>
               </section>
               <section>
                 <h4>Discussion</h4>
                 <ol className="prototype-list ordered">
-                  {studyPlan.discussion_questions.map((question, idx) => (
-                    <li key={question}>
-                      {question}
-                      {studyPlan.discussion_question_notes?.[idx] ? (
-                        <p className="question-note">{studyPlan.discussion_question_notes[idx]}</p>
-                      ) : null}
-                    </li>
-                  ))}
+                  {renderTypedList(
+                    studyPlan.discussion_questions,
+                    Math.max(0, visibleStudyPlanBodyChars - sumStrings(studyPlan.context_points)),
+                    studyPlan.discussion_question_notes,
+                  )}
                 </ol>
               </section>
               <section>
                 <h4>Reflection</h4>
                 <ul className="prototype-list">
-                  {studyPlan.reflection_questions.map((question, idx) => (
-                    <li key={question}>
-                      {question}
-                      {studyPlan.reflection_question_notes?.[idx] ? (
-                        <p className="question-note">{studyPlan.reflection_question_notes[idx]}</p>
-                      ) : null}
-                    </li>
-                  ))}
+                  {renderTypedList(
+                    studyPlan.reflection_questions,
+                    Math.max(
+                      0,
+                      visibleStudyPlanBodyChars -
+                        sumStrings(studyPlan.context_points) -
+                        sumStudyPlanListChars(studyPlan.discussion_questions, studyPlan.discussion_question_notes),
+                    ),
+                    studyPlan.reflection_question_notes,
+                  )}
                 </ul>
               </section>
             </div>

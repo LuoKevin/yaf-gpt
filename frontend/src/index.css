@@ -21,6 +21,11 @@
   --error-surface: rgba(147, 0, 10, 0.42);
   --success-surface: rgba(197, 197, 216, 0.08);
   --shadow: 0 32px 60px -18px rgba(0, 0, 0, 0.55);
+  --page-gutter: clamp(14px, 2.2vw, 28px);
+  --sidebar-width: clamp(220px, 21vw, 256px);
+  --sidebar-collapsed-width: 76px;
+  --sidebar-content-gap: clamp(18px, 2vw, 36px);
+  --panel-padding: clamp(20px, 2.2vw, 28px);
 }
 
 * {
@@ -78,28 +83,29 @@ button {
 
 .shell {
   min-height: 100vh;
-  padding: 0 3vw 0 0;
+  padding: 0 var(--page-gutter) 0 0;
   overflow-x: hidden;
 }
 
 .shell-content {
-  width: 100%;
+  width: calc(100% - (var(--sidebar-width) + var(--sidebar-content-gap)));
   min-width: 0;
-  margin-left: 292px;
-  padding: 24px 0 48px;
+  margin-left: calc(var(--sidebar-width) + var(--sidebar-content-gap));
+  padding: clamp(18px, 2vw, 24px) 0 48px;
   transition: margin-left 0.28s ease;
 }
 
 .shell.shell-collapsed .shell-content {
-  margin-left: 108px;
+  width: calc(100% - (var(--sidebar-collapsed-width) + var(--sidebar-content-gap)));
+  margin-left: calc(var(--sidebar-collapsed-width) + var(--sidebar-content-gap));
 }
 
 .sidebar {
   position: fixed;
   inset: 0 auto 0 0;
   z-index: 10;
-  width: 256px;
-  padding: 24px 12px 18px;
+  width: var(--sidebar-width);
+  padding: clamp(18px, 2vw, 24px) 12px 18px;
   display: grid;
   align-content: start;
   gap: 18px;
@@ -110,7 +116,7 @@ button {
 }
 
 .sidebar.collapsed {
-  width: 76px;
+  width: var(--sidebar-collapsed-width);
   padding-left: 8px;
   padding-right: 8px;
   overflow: visible;
@@ -328,9 +334,9 @@ button {
   position: sticky;
   top: 0;
   z-index: 8;
-  width: min(1400px, calc(100% - 24px));
+  width: min(1400px, calc(100% - (var(--page-gutter) * 2)));
   margin: 0 auto 28px;
-  padding: 14px 22px;
+  padding: 14px clamp(16px, 2vw, 22px);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -397,12 +403,12 @@ button {
 }
 
 .workspace {
-  width: min(1400px, calc(100% - 24px));
+  width: min(1400px, calc(100% - (var(--page-gutter) * 2)));
   margin: 0 auto;
 }
 
 .workspace-header {
-  margin-bottom: 28px;
+  margin-bottom: clamp(20px, 2.4vw, 28px);
 }
 
 .workspace-header-centered {
@@ -461,7 +467,7 @@ button {
 
 .prototype-card,
 .music-results {
-  padding: 24px;
+  padding: var(--panel-padding);
 }
 
 .card-header,
@@ -696,7 +702,7 @@ textarea {
 
 .workspace-chat {
   display: grid;
-  gap: 28px;
+  gap: clamp(20px, 2.4vw, 28px);
 }
 
 .chat-prototype-layout {
@@ -706,7 +712,10 @@ textarea {
 }
 
 .chat-feed-card {
-  padding: 28px 28px 22px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: clamp(20px, 2.2vw, 28px) clamp(18px, 2.2vw, 28px) clamp(18px, 2vw, 22px);
 }
 
 .context-stack {
@@ -718,6 +727,7 @@ textarea {
 .chat-log,
 .discussion-transcript-list {
   display: grid;
+  min-height: 0;
   gap: 18px;
   max-height: 58vh;
   overflow-y: auto;
@@ -976,7 +986,7 @@ textarea {
 
 .study-feature-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
+  grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
   gap: 24px;
   align-items: start;
 }
@@ -984,7 +994,7 @@ textarea {
 .study-request-row {
   width: min(100%, 72rem);
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(240px, 17rem);
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 17rem);
   gap: 14px;
   align-items: stretch;
   margin-bottom: 18px;
@@ -1158,7 +1168,7 @@ textarea {
 }
 
 .study-passage-sheet {
-  padding: 28px;
+  padding: var(--panel-padding);
 }
 
 .study-passage-sheet-compact {
@@ -1245,7 +1255,7 @@ textarea {
   max-width: 54rem;
   width: 100%;
   margin: 0 auto;
-  padding: 28px;
+  padding: var(--panel-padding);
   background: var(--surface-low);
   border-radius: 24px;
   box-shadow: var(--shadow);
@@ -1327,7 +1337,7 @@ textarea {
 
 .discussion-voice-hero {
   width: min(100%, 64rem);
-  padding: 28px;
+  padding: var(--panel-padding);
   display: grid;
   gap: 24px;
 }
@@ -1459,7 +1469,7 @@ textarea {
 
 .discussion-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
+  grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
   gap: 24px;
   align-items: start;
 }
@@ -1488,7 +1498,9 @@ audio {
 @media (max-width: 1200px) {
   .study-feature-grid,
   .chat-prototype-layout,
-  .discussion-grid {
+  .discussion-grid,
+  .study-request-row,
+  .music-grid {
     grid-template-columns: 1fr;
   }
 
@@ -1498,12 +1510,26 @@ audio {
     max-height: none;
   }
 
+  .track-row {
+    grid-template-columns: auto 1fr;
+  }
+
+  .job-status {
+    justify-self: start;
+    grid-column: 2 / 3;
+  }
+
+  .discussion-voice-meta,
+  .discussion-controls {
+    flex-wrap: wrap;
+  }
+
   .study-image-card {
     position: static;
   }
 }
 
-@media (max-width: 1080px) {
+@media (max-width: 1240px) {
   .shell {
     padding-left: 0;
     padding-right: 0;
@@ -1511,6 +1537,7 @@ audio {
 
   .shell-content,
   .shell.shell-collapsed .shell-content {
+    width: 100%;
     margin-left: 0;
     padding-top: 0;
   }
@@ -1812,11 +1839,23 @@ audio {
   .chat-log,
   .discussion-transcript-list {
     gap: 14px;
-    max-height: 42vh;
+    max-height: none;
     overflow-y: scroll;
     scrollbar-gutter: stable;
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
+  }
+
+  .chat-prototype-layout {
+    min-height: 0;
+  }
+
+  .chat-feed-card {
+    height: clamp(360px, 56dvh, 42rem);
+  }
+
+  .chat-log {
+    flex: 1 1 auto;
   }
 
   .discussion-transcript-item {

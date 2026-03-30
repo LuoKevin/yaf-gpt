@@ -12,17 +12,20 @@ from ...services.study_plan.bible_lookup import (
     PassageProviderError,
 )
 from ...services.voice_chat import (
-    PersonaChatProviderError,
-    PersonaChatService,
-    PersonaChatValidationError,
+    ChatProviderError,
+    ChatService,
+    ChatValidationError,
 )
-from ..schemas import APIErrorResponse, PersonaChatRequest, PersonaChatResponse
+from ..schemas import APIErrorResponse, ChatRequest, ChatResponse
 
 router = APIRouter(prefix="/api", tags=["chat"])
 
 
-def get_persona_chat_service() -> PersonaChatService:
-    return PersonaChatService()
+def get_chat_service() -> ChatService:
+    return ChatService()
+
+
+get_persona_chat_service = get_chat_service
 
 
 def _sse_event(event: str, payload: dict[str, object]) -> str:
@@ -30,8 +33,19 @@ def _sse_event(event: str, payload: dict[str, object]) -> str:
 
 
 @router.post(
+    "/chat",
+    response_model=ChatResponse,
+    responses={
+        400: {"model": APIErrorResponse},
+        404: {"model": APIErrorResponse},
+        429: {"model": APIErrorResponse},
+        502: {"model": APIErrorResponse},
+    },
+    dependencies=[Depends(limit_requests(bucket="chat", max_requests=20))],
+)
+@router.post(
     "/persona-chat",
-    response_model=PersonaChatResponse,
+    response_model=ChatResponse,
     responses={
         400: {"model": APIErrorResponse},
         404: {"model": APIErrorResponse},
@@ -40,20 +54,30 @@ def _sse_event(event: str, payload: dict[str, object]) -> str:
     },
     dependencies=[Depends(limit_requests(bucket="persona-chat", max_requests=20))],
 )
-def create_persona_chat(
-    payload: PersonaChatRequest,
-    service: PersonaChatService = Depends(get_persona_chat_service),
-) -> PersonaChatResponse:
+def create_chat(
+    payload: ChatRequest,
+    service: ChatService = Depends(get_chat_service),
+) -> ChatResponse:
     try:
         return service.create_reply(payload)
-    except (InvalidReferenceError, PersonaChatValidationError) as exc:
+    except (InvalidReferenceError, ChatValidationError) as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except PassageNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
-    except (PassageProviderError, PersonaChatProviderError) as exc:
+    except (PassageProviderError, ChatProviderError) as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
 
 
+@router.post(
+    "/chat/stream",
+    responses={
+        400: {"model": APIErrorResponse},
+        404: {"model": APIErrorResponse},
+        429: {"model": APIErrorResponse},
+        502: {"model": APIErrorResponse},
+    },
+    dependencies=[Depends(limit_requests(bucket="chat-stream", max_requests=12))],
+)
 @router.post(
     "/persona-chat/stream",
     responses={
@@ -64,17 +88,17 @@ def create_persona_chat(
     },
     dependencies=[Depends(limit_requests(bucket="persona-chat-stream", max_requests=12))],
 )
-def stream_persona_chat(
-    payload: PersonaChatRequest,
-    service: PersonaChatService = Depends(get_persona_chat_service),
+def stream_chat(
+    payload: ChatRequest,
+    service: ChatService = Depends(get_chat_service),
 ) -> StreamingResponse:
     try:
         model, deltas = service.stream_reply(payload)
-    except (InvalidReferenceError, PersonaChatValidationError) as exc:
+    except (InvalidReferenceError, ChatValidationError) as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except PassageNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
-    except (PassageProviderError, PersonaChatProviderError) as exc:
+    except (PassageProviderError, ChatProviderError) as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
 
     def _event_stream():
@@ -82,7 +106,7 @@ def stream_persona_chat(
         try:
             for delta in deltas:
                 yield _sse_event("chunk", {"delta": delta})
-        except (PersonaChatValidationError, PersonaChatProviderError) as exc:
+        except (ChatValidationError, ChatProviderError) as exc:
             yield _sse_event("error", {"detail": str(exc)})
             return
         yield _sse_event("done", {"done": True})
@@ -95,3 +119,7 @@ def stream_persona_chat(
             "X-Accel-Buffering": "no",
         },
     )
+
+
+create_persona_chat = create_chat
+stream_persona_chat = stream_chat

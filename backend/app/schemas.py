@@ -128,13 +128,13 @@ class PassageImageResponse(BaseModel):
     alt_text: str
 
 
-class PersonaChatMessage(BaseModel):
+class ChatRequestMessage(BaseModel):
     role: ChatRole
     content: str = Field(..., min_length=1)
 
 
-class PersonaChatRequest(BaseModel):
-    messages: list[PersonaChatMessage] = Field(
+class ChatRequest(BaseModel):
+    messages: list[ChatRequestMessage] = Field(
         ...,
         min_length=1,
         description="Conversation history in order.",
@@ -168,10 +168,15 @@ class StudyPlanResponse(BaseModel):
     usage: Optional[UsageMetrics] = None
 
 
-class PersonaChatResponse(BaseModel):
+class ChatResponse(BaseModel):
     reply: str
     model: str
     usage: Optional[UsageMetrics] = None
+
+
+PersonaChatMessage = ChatRequestMessage
+PersonaChatRequest = ChatRequest
+PersonaChatResponse = ChatResponse
 
 
 class VoiceTranscriptionRequest(BaseModel):

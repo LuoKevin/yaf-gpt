@@ -1,31 +1,53 @@
-import type { KeyboardEvent } from "react";
+import { useEffect, useRef, type KeyboardEvent } from "react";
 
-import type { PersonaChatMessage } from "../types";
+import type { ChatMessage } from "../types";
 
 type TextChatWorkspaceProps = {
-  personaError: string;
-  personaMessages: PersonaChatMessage[];
-  personaInput: string;
-  isSendingPersona: boolean;
-  onPersonaInputChange: (value: string) => void;
-  onPersonaSend: () => void | Promise<void>;
+  chatError: string;
+  chatMessages: ChatMessage[];
+  chatInput: string;
+  isSendingChat: boolean;
+  onChatInputChange: (value: string) => void;
+  onChatSend: () => void | Promise<void>;
 };
 
 export function TextChatWorkspace({
-  personaError,
-  personaMessages,
-  personaInput,
-  isSendingPersona,
-  onPersonaInputChange,
-  onPersonaSend
+  chatError,
+  chatMessages,
+  chatInput,
+  isSendingChat,
+  onChatInputChange,
+  onChatSend
 }: TextChatWorkspaceProps) {
+  const chatLogRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const lastMessage = chatMessages[chatMessages.length - 1];
+    if (!lastMessage || lastMessage.role !== "assistant") {
+      return;
+    }
+
+    const chatLog = chatLogRef.current;
+    if (!chatLog) {
+      return;
+    }
+
+    const frameId = window.requestAnimationFrame(() => {
+      chatLog.scrollTop = chatLog.scrollHeight;
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+    };
+  }, [chatMessages, isSendingChat]);
+
   function handleComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
     if (event.key !== "Enter" || event.shiftKey) {
       return;
     }
 
     event.preventDefault();
-    void onPersonaSend();
+    void onChatSend();
   }
 
   return (
@@ -36,16 +58,16 @@ export function TextChatWorkspace({
 
       <div className="chat-prototype-layout">
         <div className="chat-feed-card">
-          {personaError ? <p className="error-banner">{personaError}</p> : null}
+          {chatError ? <p className="error-banner">{chatError}</p> : null}
 
-          <div className="chat-log">
-            {personaMessages.length > 0 ? (
+          <div className="chat-log" ref={chatLogRef}>
+            {chatMessages.length > 0 ? (
               <>
-                {personaMessages.map((message, index) => {
+                {chatMessages.filter(Boolean).map((message, index) => {
                   const isStreamingAssistantPlaceholder =
                     message.role === "assistant" &&
-                    isSendingPersona &&
-                    index === personaMessages.length - 1 &&
+                    isSendingChat &&
+                    index === chatMessages.length - 1 &&
                     message.content.trim().length === 0;
 
                   return (
@@ -86,21 +108,21 @@ export function TextChatWorkspace({
           Message
         </label>
         <div className="chat-composer">
-          <textarea
-            id="text-chat-input"
-            rows={1}
-            value={personaInput}
-            onChange={(event) => onPersonaInputChange(event.target.value)}
-            onKeyDown={handleComposerKeyDown}
-            placeholder="Ask the Assistant about Scripture..."
-          />
+            <textarea
+              id="text-chat-input"
+              rows={1}
+              value={chatInput}
+              onChange={(event) => onChatInputChange(event.target.value)}
+              onKeyDown={handleComposerKeyDown}
+              placeholder="Ask the Assistant about Scripture..."
+            />
           <div className="chat-composer-actions">
             <div className="composer-hints">
               <span className="material-symbols-outlined">edit_note</span>
               <p className="muted-text">Enter to send. Shift+Enter for a new line.</p>
             </div>
-            <button type="button" className="primary-button" onClick={onPersonaSend} disabled={isSendingPersona}>
-              {isSendingPersona ? (
+            <button type="button" className="primary-button" onClick={onChatSend} disabled={isSendingChat}>
+              {isSendingChat ? (
                 <>
                   <span className="loading-spinner" aria-hidden="true" />
                   <span>Sending...</span>

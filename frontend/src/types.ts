@@ -1,6 +1,6 @@
 export type TranslationCode = "WEB" | "KJV";
 export type ImageStyle = "modern_editorial_illustration";
-export type PersonaChatRole = "user" | "assistant";
+export type ChatRole = "user" | "assistant";
 export type MusicJobStatus = "queued" | "in_progress" | "completed" | "failed";
 export type ViewMode = "study" | "chat" | "music" | "discussion";
 export type BibleVerse = {
@@ -49,16 +49,20 @@ export type PassageImageResponse = {
   alt_text: string;
 };
 
-export type PersonaChatMessage = {
-  role: PersonaChatRole;
+export type ChatMessage = {
+  role: ChatRole;
   content: string;
 };
 
-export type PersonaChatResponse = {
+export type ChatResponse = {
   reply: string;
   model: string;
   usage: UsageMetrics | null;
 };
+
+export type PersonaChatRole = ChatRole;
+export type PersonaChatMessage = ChatMessage;
+export type PersonaChatResponse = ChatResponse;
 
 export type VoiceTranscriptionResponse = {
   transcript: string;
@@ -75,6 +79,14 @@ export type VoiceChatTurnResponse = {
   audio_model: string | null;
   audio_voice: string | null;
   audio_response_format: string | null;
+};
+
+export type VoiceRealtimeSessionResponse = {
+  client_secret: string;
+  expires_at: number;
+  model: string;
+  voice: string;
+  webrtc_url: string;
 };
 
 export type MusicGenerateResponse = {

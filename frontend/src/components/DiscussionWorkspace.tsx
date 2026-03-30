@@ -1,33 +1,33 @@
 import { useState, type CSSProperties } from "react";
 
-import type { PersonaChatMessage } from "../types";
+import type { ChatMessage } from "../types";
 
 type DiscussionWorkspaceProps = {
-  personaError: string;
-  personaMessages: PersonaChatMessage[];
-  isProcessingPersona: boolean;
-  isRecordingPersona: boolean;
-  isPlayingPersonaAudio: boolean;
+  discussionError: string;
+  discussionMessages: ChatMessage[];
+  isConnectingSession: boolean;
+  isSessionActive: boolean;
+  isPlayingSessionAudio: boolean;
   voiceVisualLevel: number;
   voiceStatus: string;
-  onRecordToggle: () => void | Promise<void>;
+  onSessionToggle: () => void | Promise<void>;
 };
 
 export function DiscussionWorkspace({
-  personaError,
-  personaMessages,
-  isProcessingPersona,
-  isRecordingPersona,
-  isPlayingPersonaAudio,
+  discussionError,
+  discussionMessages,
+  isConnectingSession,
+  isSessionActive,
+  isPlayingSessionAudio,
   voiceVisualLevel,
   voiceStatus,
-  onRecordToggle
+  onSessionToggle
 }: DiscussionWorkspaceProps) {
   const [isTranscriptOpen, setIsTranscriptOpen] = useState(false);
   const voiceOrbitStyle = {
     "--voice-level": String(Math.max(0, Math.min(voiceVisualLevel, 1)))
   } as CSSProperties;
-  const isVoiceActive = isRecordingPersona || isPlayingPersonaAudio;
+  const isVoiceActive = isSessionActive || isPlayingSessionAudio;
 
   return (
     <section className="discussion-prototype">
@@ -35,7 +35,7 @@ export function DiscussionWorkspace({
         <p className="workspace-kicker">Discussion</p>
         <h1>Voice discussion</h1>
         <p className="workspace-copy">
-          Record a prompt, tap again to send it, then hear the spoken mentor reply back.
+          Open a live session, speak naturally, and let the mentor respond in real time.
         </p>
       </div>
 
@@ -45,21 +45,21 @@ export function DiscussionWorkspace({
             <p className="section-label">Voice session</p>
             <h2>{isVoiceActive ? "Voice session active" : "Mentor chat"}</h2>
             <p className="muted-text">
-              This workspace is isolated from text chat and handles spoken input plus spoken replies only.
-              {isRecordingPersona ? " Tap the button again to stop and send." : ""}
+              This workspace is isolated from text chat and uses a live WebRTC connection for spoken input and reply audio.
+              {isSessionActive ? " Tap the button again to end the session." : ""}
             </p>
           </div>
           <div className="discussion-status-cluster">
             {voiceStatus ? (
               <span className="surface-pill loading-pill">
-                {isProcessingPersona ? <span className="loading-spinner" aria-hidden="true" /> : null}
+                {isConnectingSession ? <span className="loading-spinner" aria-hidden="true" /> : null}
                 <span>{voiceStatus}</span>
               </span>
             ) : null}
           </div>
         </div>
 
-        {personaError ? <p className="error-banner">{personaError}</p> : null}
+        {discussionError ? <p className="error-banner">{discussionError}</p> : null}
 
         <div className="voice-visualizer-shell">
           <div className={`voice-orbit ${isVoiceActive ? "active" : ""}`} style={voiceOrbitStyle}>
@@ -80,29 +80,29 @@ export function DiscussionWorkspace({
           <button
             type="button"
             className="danger-button call-button"
-            onClick={onRecordToggle}
-            disabled={isProcessingPersona}
+            onClick={onSessionToggle}
+            disabled={isConnectingSession}
           >
-            {isProcessingPersona ? (
+            {isConnectingSession ? (
               <span className="loading-spinner" aria-hidden="true" />
             ) : (
-              <span className="material-symbols-outlined">{isRecordingPersona ? "stop_circle" : "mic"}</span>
+              <span className="material-symbols-outlined">{isSessionActive ? "call_end" : "phone_in_talk"}</span>
             )}
             <span>
-              {isProcessingPersona
-                ? "Processing..."
-                : isRecordingPersona
-                  ? "Stop and send"
-                  : "Start recording"}
+              {isConnectingSession
+                ? "Connecting..."
+                : isSessionActive
+                  ? "End live session"
+                  : "Start live session"}
             </span>
           </button>
         </div>
 
         <div className="discussion-voice-settings">
-          {isProcessingPersona ? (
+          {isConnectingSession ? (
             <div className="loading-inline">
               <span className="loading-spinner" aria-hidden="true" />
-              <p className="muted-text">Transcribing and rendering reply...</p>
+              <p className="muted-text">Opening live audio session...</p>
             </div>
           ) : null}
         </div>
@@ -140,9 +140,9 @@ export function DiscussionWorkspace({
               <span>Hide transcript</span>
             </button>
           </div>
-          {personaMessages.length > 0 ? (
+          {discussionMessages.length > 0 ? (
           <div className="discussion-transcript-list">
-            {personaMessages.map((message, index) => (
+            {discussionMessages.filter(Boolean).map((message, index) => (
               <article key={`${message.role}-${index}`} className={`discussion-transcript-item ${message.role}`}>
                 <div className="discussion-transcript-meta">
                   <span className="discussion-transcript-role">
@@ -154,15 +154,15 @@ export function DiscussionWorkspace({
                 </div>
               </article>
             ))}
-            {isProcessingPersona ? (
+            {isConnectingSession ? (
               <div className="discussion-transcript-status">
                 <span className="loading-spinner" aria-hidden="true" />
-                <span>Waiting for spoken reply...</span>
+                <span>Connecting live audio...</span>
               </div>
             ) : null}
           </div>
           ) : (
-            <p className="empty-state">Start recording, then tap again to send your spoken prompt.</p>
+            <p className="empty-state">Start a live session and speak naturally to begin the conversation.</p>
           )}
         </article>
       )}

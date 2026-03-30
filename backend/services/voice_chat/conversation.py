@@ -3,10 +3,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional
 
-from backend.app.schemas import PersonaChatMessage, PersonaChatRequest, TranslationCode
+from backend.app.schemas import ChatRequest, ChatRequestMessage, TranslationCode
 
 from .audio_rendering import VoiceAudioRenderingService
-from .persona import PersonaChatService
+from .chat import ChatService
 from .transcription import VoiceTranscriptionService
 
 
@@ -29,11 +29,12 @@ class VoiceChatConversationService:
         self,
         *,
         transcription_service: VoiceTranscriptionService | None = None,
-        persona_service: PersonaChatService | None = None,
+        chat_service: ChatService | None = None,
+        persona_service: ChatService | None = None,
         audio_rendering_service: VoiceAudioRenderingService | None = None,
     ) -> None:
         self._transcription_service = transcription_service or VoiceTranscriptionService()
-        self._persona_service = persona_service or PersonaChatService()
+        self._chat_service = chat_service or persona_service or ChatService()
         self._audio_rendering_service = audio_rendering_service or VoiceAudioRenderingService()
 
     def create_turn_from_base64(
@@ -51,23 +52,23 @@ class VoiceChatConversationService:
             file_name=file_name,
         )
 
-        persona_response = self._persona_service.create_reply(
-            PersonaChatRequest(
-                messages=[PersonaChatMessage(role="user", content=transcript)],
+        chat_response = self._chat_service.create_reply(
+            ChatRequest(
+                messages=[ChatRequestMessage(role="user", content=transcript)],
                 reference_context=reference_context,
                 translation=translation,
             )
         )
 
         audio_result = self._audio_rendering_service.render_audio(
-            input_text=persona_response.reply,
+            input_text=chat_response.reply,
         )
 
         return VoiceChatTurnResult(
             transcript=transcript,
             transcript_model=self._transcription_service.model_name,
-            reply=persona_response.reply,
-            reply_model=persona_response.model,
+            reply=chat_response.reply,
+            reply_model=chat_response.model,
             rendered=audio_result.rendered,
             audio_bytes=audio_result.audio_bytes,
             audio_mime_type=audio_result.mime_type,
