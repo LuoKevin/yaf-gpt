@@ -792,42 +792,13 @@ export default function App() {
   }
 
   async function handleMusicGeneration() {
-    const trimmedPrompt = musicPrompt.trim();
-    if (!trimmedPrompt) {
-      setMusicError("Enter a prompt.");
-      return;
-    }
-
-    setIsGeneratingMusic(true);
     setMusicError("");
-
-    try {
-      const response = await requestJson<MusicGenerateResponse>("/api/music/generate", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          prompt: trimmedPrompt,
-          style: musicStyle.trim(),
-          mood: musicMood.trim() || undefined
-        })
-      });
-
-      setMusicResult(response);
-      setMusicJob({
-        job_id: response.job_id,
-        status: response.status,
-        provider: response.provider,
-        audio_url: null,
-        error: null
-      });
-    } catch (error) {
+    window.alert(
+      "Sorry, music generation is currently limited to YAF-GPT Pro users. Looking to turn your thougts into music? Try suno.com!"
+    );
+    if (musicResult || musicJob) {
       setMusicResult(null);
       setMusicJob(null);
-      setMusicError(error instanceof Error ? error.message : "Unable to generate music.");
-    } finally {
-      setIsGeneratingMusic(false);
     }
   }
 

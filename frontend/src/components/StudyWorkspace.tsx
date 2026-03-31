@@ -147,7 +147,7 @@ function sumStrings(values: string[]) {
   return values.reduce((total, value) => total + value.length, 0);
 }
 
-function sumStudyPlanListChars(items: string[], notes?: Array<string | null | undefined>) {
+function sumStudyPlanListChars(items: string[], notes?: Array<string | null | undefined> | null) {
   return items.reduce((total, item, index) => total + item.length + (notes?.[index]?.length ?? 0), 0);
 }
 
@@ -367,7 +367,7 @@ export function StudyWorkspace({
   function renderTypedList(
     items: string[],
     visibleChars: number,
-    notes?: Array<string | null | undefined>,
+    notes?: Array<string | null | undefined> | null,
   ) {
     let remainingChars = visibleChars;
 
@@ -390,7 +390,7 @@ export function StudyWorkspace({
           : "";
 
       if (visibleNote) {
-        remainingChars = Math.max(0, remainingChars - note.length);
+        remainingChars = Math.max(0, remainingChars - visibleNote.length);
       }
 
       return (
