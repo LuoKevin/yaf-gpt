@@ -553,6 +553,30 @@ export default function App() {
     });
   }
 
+  function sendDiscussionRealtimeEvent(event: Record<string, unknown>) {
+    const dataChannel = discussionDataChannelRef.current;
+    if (!dataChannel || dataChannel.readyState !== "open") {
+      return false;
+    }
+
+    dataChannel.send(JSON.stringify(event));
+    return true;
+  }
+
+  function requestInitialDiscussionGreeting() {
+    return sendDiscussionRealtimeEvent({
+      type: "response.create",
+      response: {
+        instructions:
+          "Briefly introduce yourself out loud as YAF-GPT, welcome the user to this live voice discussion, and invite them to start speaking. Keep it warm and under two sentences.",
+        output_modalities: ["audio"],
+        metadata: {
+          response_purpose: "initial_greeting",
+        },
+      },
+    });
+  }
+
   function handleDiscussionRealtimeEvent(event: unknown) {
     if (!event || typeof event !== "object" || !("type" in event) || typeof event.type !== "string") {
       return;
@@ -699,8 +723,9 @@ export default function App() {
       dataChannel.onopen = () => {
         setIsConnectingDiscussion(false);
         setIsDiscussionSessionActive(true);
-        setDiscussionVoiceStatus("Live session connected.");
+        setDiscussionVoiceStatus("Live session connected. Starting introduction...");
         setDiscussionVoiceVisualLevel(0.6);
+        requestInitialDiscussionGreeting();
       };
 
       dataChannel.onmessage = (messageEvent) => {

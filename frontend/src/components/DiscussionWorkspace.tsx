@@ -44,10 +44,7 @@ export function DiscussionWorkspace({
           <div>
             <p className="section-label">Voice session</p>
             <h2>{isVoiceActive ? "Voice session active" : "Mentor chat"}</h2>
-            <p className="muted-text">
-              This workspace is isolated from text chat and uses a live WebRTC connection for spoken input and reply audio.
-              {isSessionActive ? " Tap the button again to end the session." : ""}
-            </p>
+            {isSessionActive ? <p className="muted-text">Tap the button again to end the session.</p> : null}
           </div>
           <div className="discussion-status-cluster">
             {voiceStatus ? (
@@ -105,6 +102,10 @@ export function DiscussionWorkspace({
               <p className="muted-text">Opening live audio session...</p>
             </div>
           ) : null}
+          <p className="composer-disclaimer">
+            YAF-GPT is not a source of formal religious advice. For doctrine, pastoral care, or serious spiritual guidance,
+            talk with a trusted pastor, elder, or church leader.
+          </p>
         </div>
       </article>
 
