@@ -794,7 +794,7 @@ export default function App() {
   async function handleMusicGeneration() {
     setMusicError("");
     window.alert(
-      "Sorry, music generation is currently limited to YAF-GPT Pro users. Looking to turn your thougts into music? Try suno.com!"
+      "Sorry, music generation is currently limited to YAF-GPT Pro users. Looking to turn your thoughts into music? Try suno.com!"
     );
     if (musicResult || musicJob) {
       setMusicResult(null);
